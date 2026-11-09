@@ -68,6 +68,11 @@ function logoutAndReturnToLogin() {
         </span>
         <span>Study Routine</span>
       </RouterLink>
+      <nav class="content-navigation" aria-label="Navegação principal">
+        <RouterLink to="/">Visão geral</RouterLink>
+        <RouterLink to="/content">Conteúdo</RouterLink>
+        <RouterLink to="/planning">Planejamento</RouterLink>
+      </nav>
       <div class="account-menu">
         <span class="topbar-note">{{ currentUser?.email }}</span>
         <button
@@ -87,6 +92,12 @@ function logoutAndReturnToLogin() {
         Organize disciplinas, acompanhe seu progresso e construa um plano que
         respeita o tempo que você tem.
       </p>
+      <RouterLink class="primary-button overview-action" to="/content">
+        Organizar conteúdo
+      </RouterLink>
+      <RouterLink class="secondary-button overview-action" to="/planning">
+        Ver planejamento
+      </RouterLink>
 
       <section class="health-card" aria-label="Conexão com a API">
         <div class="health-label">

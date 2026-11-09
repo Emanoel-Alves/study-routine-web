@@ -64,6 +64,23 @@ export function logout(): void {
   currentUser.value = null;
 }
 
+export async function requestApi<T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
+  const headers = new Headers(init.headers);
+  if (accessToken.value) {
+    headers.set("authorization", `Bearer ${accessToken.value}`);
+  }
+  if (init.body !== undefined && !headers.has("content-type")) {
+    headers.set("content-type", "application/json");
+  }
+
+  const response = await fetch(apiUrl(path), { ...init, headers });
+  if (!response.ok) throw new Error(await getErrorMessage(response));
+  return (await response.json()) as T;
+}
+
 export async function restoreSession(): Promise<boolean> {
   const token = accessToken.value;
   if (!token) return false;
