@@ -449,7 +449,7 @@ async function submitTopic() {
 async function importMatrix() {
   if (
     !window.confirm(
-      "Adicionar à sua conta a matriz de 6 disciplinas e 39 tópicos do plano revisado? As referências aparecem nos tópicos e nos materiais. Itens com nomes já existentes não serão duplicados nem sobrescritos.",
+      "Adicionar à sua conta a matriz de 8 disciplinas e 62 tópicos, incluindo Língua Portuguesa e Legislação do Edital UFC nº 01/2024? As referências aparecem nos materiais. Itens com nomes já existentes não serão duplicados nem sobrescritos.",
     )
   ) {
     return;
