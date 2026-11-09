@@ -83,6 +83,7 @@ export function resumeStudyTimer(): void {
 export function getTimedStudySession(): {
   topicId: string;
   durationMinutes: number;
+  durationSeconds: number;
   elapsedSeconds: number;
 } | null {
   if (activeStudyTimer.topicId === null) return null;
@@ -91,7 +92,8 @@ export function getTimedStudySession(): {
   return {
     topicId: activeStudyTimer.topicId,
     elapsedSeconds: activeStudyTimer.elapsedSeconds,
-    durationMinutes: Math.ceil(activeStudyTimer.elapsedSeconds / 60),
+    durationMinutes: Math.floor(activeStudyTimer.elapsedSeconds / 60),
+    durationSeconds: activeStudyTimer.elapsedSeconds,
   };
 }
 

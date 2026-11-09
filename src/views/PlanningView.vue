@@ -270,6 +270,19 @@ function formatTime(minutes: number): string {
   return `${hours} h ${rest} min`;
 }
 
+function formatSessionDuration(
+  session: Pick<StudySession, "durationMinutes" | "durationSeconds">,
+): string {
+  if (session.durationSeconds === undefined) {
+    return formatTime(session.durationMinutes);
+  }
+  const minutes = Math.floor(session.durationSeconds / 60);
+  const seconds = session.durationSeconds % 60;
+  if (minutes === 0) return `${seconds} s`;
+  if (seconds === 0) return formatTime(minutes);
+  return `${formatTime(minutes)} ${seconds} s`;
+}
+
 function formatElapsedTime(seconds: number): string {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
@@ -422,6 +435,10 @@ async function finishTimedSession() {
   pauseStudyTimer();
   const timedSession = getTimedStudySession();
   if (!timedSession) return;
+  if (timedSession.durationSeconds < 1) {
+    errorMessage.value = "Deixe o cronômetro rodar por pelo menos um segundo.";
+    return;
+  }
 
   saving.value = true;
   errorMessage.value = "";
@@ -430,12 +447,13 @@ async function finishTimedSession() {
     await registerSession(timedSession.topicId, {
       kind: "study",
       date: today,
-      durationMinutes: Math.max(1, timedSession.durationMinutes),
+      durationSeconds: timedSession.durationSeconds,
     });
     resetStudyTimer();
-    successMessage.value = `Sessão de ${formatTime(
-      Math.max(1, timedSession.durationMinutes),
-    )} registrada.`;
+    successMessage.value = `Sessão de ${formatSessionDuration({
+      durationMinutes: timedSession.durationMinutes,
+      durationSeconds: timedSession.durationSeconds,
+    })} registrada.`;
     await loadPlanning();
   } catch (error) {
     errorMessage.value =
@@ -1191,7 +1209,7 @@ onMounted(loadPlanning);
                 </span>
                 <small v-if="session.notes">{{ session.notes }}</small>
               </div>
-              <strong>{{ formatTime(session.durationMinutes) }}</strong>
+              <strong>{{ formatSessionDuration(session) }}</strong>
             </li>
           </ul>
           <p v-else class="inline-empty">

@@ -52,6 +52,7 @@ export interface StudySession {
   topicId: string;
   date: string;
   durationMinutes: number;
+  durationSeconds?: number;
   notes: string;
   kind: "study" | "review";
   createdAt: string;
@@ -105,7 +106,8 @@ export function registerSession(
   topicId: string,
   input: {
     kind: "study" | "review";
-    durationMinutes: number;
+    durationMinutes?: number;
+    durationSeconds?: number;
     date?: string;
     notes?: string;
   },

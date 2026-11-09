@@ -14,7 +14,7 @@ describe("study timer", () => {
     vi.useRealTimers();
   });
 
-  it("pauses and resumes elapsed time and rounds saved duration up to a minute", () => {
+  it("pauses and resumes elapsed time without rounding seconds up to minutes", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-11-09T12:00:00Z"));
     startStudyTimer("topic-1");
@@ -23,7 +23,8 @@ describe("study timer", () => {
     expect(getTimedStudySession()).toEqual({
       topicId: "topic-1",
       elapsedSeconds: 65,
-      durationMinutes: 2,
+      durationMinutes: 1,
+      durationSeconds: 65,
     });
 
     pauseStudyTimer();
@@ -35,7 +36,22 @@ describe("study timer", () => {
     expect(getTimedStudySession()).toEqual({
       topicId: "topic-1",
       elapsedSeconds: 75,
-      durationMinutes: 2,
+      durationMinutes: 1,
+      durationSeconds: 75,
+    });
+  });
+
+  it("keeps a short session below one whole minute", () => {
+    vi.useFakeTimers();
+    startStudyTimer("topic-1");
+
+    vi.advanceTimersByTime(5_000);
+
+    expect(getTimedStudySession()).toEqual({
+      topicId: "topic-1",
+      elapsedSeconds: 5,
+      durationMinutes: 0,
+      durationSeconds: 5,
     });
   });
 

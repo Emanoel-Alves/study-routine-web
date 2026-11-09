@@ -45,7 +45,8 @@ describe("PlanningView timer", () => {
     let registeredSession:
       | {
           kind: string;
-          durationMinutes: number;
+          durationMinutes?: number;
+          durationSeconds?: number;
           date: string;
         }
       | undefined;
@@ -53,7 +54,8 @@ describe("PlanningView timer", () => {
       id: "session-1",
       topicId: "topic-1",
       date: today,
-      durationMinutes: 2,
+      durationMinutes: 1,
+      durationSeconds: 75,
       notes: "",
       kind: "study",
       createdAt: new Date().toISOString(),
@@ -66,7 +68,8 @@ describe("PlanningView timer", () => {
         if (url.endsWith("/api/topics/topic-1/sessions")) {
           registeredSession = JSON.parse(String(init?.body)) as {
             kind: string;
-            durationMinutes: number;
+            durationMinutes?: number;
+            durationSeconds?: number;
             date: string;
           };
           return response(
@@ -138,14 +141,14 @@ describe("PlanningView timer", () => {
                   },
                 ],
                 overCapacity: false,
-                studiedMinutes: registeredSession ? 2 : 0,
+                studiedMinutes: registeredSession ? 1 : 0,
               },
             ],
             unscheduledTopics: [],
             totalAvailableMinutes: 60,
             plannedMinutes: registeredSession ? 0 : 45,
             workloadMinutes: registeredSession ? 0 : 45,
-            weeklyStudiedMinutes: registeredSession ? 2 : 0,
+            weeklyStudiedMinutes: registeredSession ? 1 : 0,
             weeklySessionCount: registeredSession ? 1 : 0,
             deadline: null,
           },
@@ -201,10 +204,10 @@ describe("PlanningView timer", () => {
     expect(registeredSession).toEqual({
       kind: "study",
       date: today,
-      durationMinutes: 2,
+      durationSeconds: 75,
     });
     expect(activeStudyTimer.topicId).toBeNull();
-    expect(wrapper.text()).toContain("Sessão de 2 min registrada.");
+    expect(wrapper.text()).toContain("Sessão de 1 min 15 s registrada.");
     expect(wrapper.text()).toContain("Registrar manualmente");
     expect(wrapper.text()).toContain("Sessões desta semana");
   });
