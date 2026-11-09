@@ -1,4 +1,5 @@
 import { ref } from "vue";
+import { resetStudyTimer } from "./study-timer";
 
 export interface AuthenticatedUser {
   id: string;
@@ -62,6 +63,7 @@ export function register(
 export function logout(): void {
   accessToken.value = null;
   currentUser.value = null;
+  resetStudyTimer();
 }
 
 export async function requestApi<T>(

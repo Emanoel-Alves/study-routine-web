@@ -24,7 +24,7 @@ O cadastro é privado e exige o código de convite configurado na API. Tokens de
 
 ## Conteúdo de estudo
 
-Na página **Conteúdo**, você pode criar e editar disciplinas, arquivá-las e reativá-las, organizar tópicos por disciplina, mudar o estado e a ordem dos tópicos e salvar anotações gerais ou específicas. Materiais aceitam links externos HTTP(S), texto ou ambos. Remoções pedem confirmação e informam que dados associados também serão removidos.
+Na página **Conteúdo**, você pode criar e editar disciplinas, arquivá-las e reativá-las, organizar tópicos por disciplina, mudar o estado e a ordem dos tópicos e salvar anotações gerais ou específicas. Adicione materiais à disciplina ou diretamente ao tópico selecionado; links e referências associados aparecem junto ao tópico e na lista de materiais da disciplina. Materiais aceitam links externos HTTP(S), texto ou ambos. Remoções pedem confirmação e informam que dados associados também serão removidos.
 
 A busca considera disciplinas e tópicos sem diferenciar maiúsculas, minúsculas ou acentos. Os filtros de estado do tópico e tipo de material podem ser combinados e ajustados independentemente. Os dados são persistidos pela API; o site precisa de conexão para carregar e salvar alterações.
 
@@ -54,10 +54,26 @@ O site do Pages é público, mesmo quando o código-fonte estiver em um reposit�
 
 ## Planejamento
 
-Na página **Planejamento**, configure os dias e minutos disponíveis e uma data-alvo opcional. O plano semanal distribui tópicos pendentes, indica o que não coube na capacidade e permite ajustes manuais. Registre sessões de estudo ou revisão para atualizar o progresso; o histórico e os dados permanecem na API.
+Na página **Planejamento**, configure os dias e minutos disponíveis e uma data-alvo opcional. O plano semanal distribui tópicos pendentes, indica o que não coube na capacidade e permite ajustes manuais. O cronômetro pode ser iniciado, pausado, retomado e finalizado; a sessão só é enviada à API ao finalizar. A duração salva é arredondada para cima ao minuto mais próximo e, se o envio falhar, o cronômetro fica pausado para tentar novamente. Também é possível registrar sessões manualmente.
+
+A visão geral apresenta um resumo do plano da semana atual, o progresso geral e as revisões pendentes. O MVP usa planejamento semanal (não uma grade mensal); a semana completa e seus ajustes ficam na página **Planejamento**.
 
 ## PWA e uso offline
 
 A aplicação oferece manifest, ícones e service worker para instalação e abertura do shell estático sem conexão. O cache contém apenas os arquivos públicos versionados da interface; respostas da API, dados de estudo e credenciais não são armazenados offline. Login, leitura e gravação exigem conexão com a API. A primeira abertura precisa de conexão para instalar o shell; use HTTPS ou `localhost` para os recursos PWA. A instalação é oferecida pelo navegador quando disponível.
 
 O layout adapta navegação, formulários e painéis para celular, tablet e desktop. Quando o navegador informa que o dispositivo está offline, a aplicação exibe um aviso de que os dados não podem ser consultados ou alterados.
+
+## Validação de publicação e rollback
+
+Após cada publicação, confirme:
+
+1. A página inicial e o acesso direto a `https://emanoel-alves.github.io/study-routine-web/#/login` respondem por HTTPS.
+2. O manifest e os ícones carregam em `/study-routine-web/manifest.webmanifest`, `/study-routine-web/icon-192.png` e `/study-routine-web/icon-512.png`.
+3. A API responde em `GET /api/health`; preflight CORS para `PATCH` deve autorizar apenas a origem configurada do Pages.
+4. Com uma conta de teste autorizada, entre, crie disciplina e tópico, configure a disponibilidade, consulte o planejamento, recarregue e confira a persistência. Remova os dados de teste ao final.
+5. Se o navegador suportar instalação, verifique a opção de instalar. Depois de carregar o aplicativo ao menos uma vez, teste que o shell abre offline e que a interface deixa claro que login, leitura e gravação precisam de conexão. O cache não deve conter respostas da API nem dados pessoais.
+
+Sem uma conta de teste autorizada, não tente contornar o convite nem use dados pessoais. Login e gravação em produção devem ser verificados pelo responsável pela conta.
+
+Para reverter uma publicação, crie um commit `git revert <commit>` e envie-o a `main`; o pipeline valida e publica novamente. Evite editar artefatos diretamente no GitHub Pages ou reescrever o histórico. O serviço de API pode demorar a responder depois de períodos sem uso, conforme os limites do plano Render; o banco, custos e retenção de backup são administrados separadamente no MongoDB Atlas.

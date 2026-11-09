@@ -13,6 +13,14 @@ import {
   type StudyPreferences,
   type StudySession,
 } from "../planning";
+import {
+  activeStudyTimer,
+  getTimedStudySession,
+  pauseStudyTimer,
+  resetStudyTimer,
+  resumeStudyTimer,
+  startStudyTimer,
+} from "../study-timer";
 
 const router = useRouter();
 const emptyContent: ContentSnapshot = {
@@ -46,6 +54,7 @@ const loading = ref(true);
 const saving = ref(false);
 const errorMessage = ref("");
 const successMessage = ref("");
+const timedTopicId = computed(() => activeStudyTimer.topicId);
 const preferencesDraft = reactive<StudyPreferences>({
   studyDays: [0, 1, 2, 3, 4],
   minutesPerDay: 60,
@@ -96,6 +105,17 @@ const reviewTopics = computed(() =>
     .sort((first, second) => first.name.localeCompare(second.name, "pt-BR")),
 );
 const emptyStudyDays = computed(() => preferencesDraft.studyDays.length === 0);
+const activeTimerTopicVisible = computed(() => {
+  const topicId = activeStudyTimer.topicId;
+  return (
+    topicId !== null &&
+    planning.value.plan.days.some(
+      (day) =>
+        day.date >= today &&
+        day.topics.some((topic) => topic.topicId === topicId),
+    )
+  );
+});
 const hasUnsavedPreferences = computed(
   () =>
     JSON.stringify({
@@ -169,6 +189,16 @@ function formatTime(minutes: number): string {
   if (hours === 0) return `${rest} min`;
   if (rest === 0) return `${hours} h`;
   return `${hours} h ${rest} min`;
+}
+
+function formatElapsedTime(seconds: number): string {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainingSeconds = seconds % 60;
+  const clock = [hours, minutes, remainingSeconds]
+    .map((part) => String(part).padStart(2, "0"))
+    .join(":");
+  return clock;
 }
 
 function statusLabel(status: Topic["status"]): string {
@@ -265,6 +295,12 @@ async function resetTopic(topicId: string) {
 }
 
 async function recordStudySession(topic: Topic, kind: "study" | "review") {
+  if (timedTopicId.value !== null) {
+    errorMessage.value =
+      "Finalize o cronômetro atual antes de registrar outra sessão.";
+    return;
+  }
+
   const draft = draftFor(topic);
   if (
     !Number.isInteger(draft.durationMinutes) ||
@@ -286,6 +322,50 @@ async function recordStudySession(topic: Topic, kind: "study" | "review") {
       ? "Revisão registrada; novo lembrete em 7 dias."
       : "Sessão registrada e progresso atualizado.",
   );
+}
+
+function beginTimedSession(topicId: string) {
+  errorMessage.value = "";
+  successMessage.value = "";
+  try {
+    startStudyTimer(topicId);
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error
+        ? error.message
+        : "Não foi possível iniciar o cronômetro.";
+  }
+}
+
+async function finishTimedSession() {
+  if (saving.value) return;
+
+  pauseStudyTimer();
+  const timedSession = getTimedStudySession();
+  if (!timedSession) return;
+
+  saving.value = true;
+  errorMessage.value = "";
+  successMessage.value = "";
+  try {
+    await registerSession(timedSession.topicId, {
+      kind: "study",
+      date: today,
+      durationMinutes: Math.max(1, timedSession.durationMinutes),
+    });
+    resetStudyTimer();
+    successMessage.value = `Sessão de ${formatTime(
+      Math.max(1, timedSession.durationMinutes),
+    )} registrada.`;
+    await loadPlanning();
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error
+        ? error.message
+        : "Não foi possível salvar a sessão cronometrada. O tempo foi mantido.";
+  } finally {
+    saving.value = false;
+  }
 }
 
 function logoutAndReturnToLogin() {
@@ -327,7 +407,6 @@ onMounted(loadPlanning);
     </header>
 
     <main class="main-content">
-      <p class="eyebrow">Etapa 3 · MVP de planejamento</p>
       <h1>Um plano que cabe na sua semana.</h1>
       <p class="page-intro">
         Defina seus dias e tempo disponível. O plano prioriza revisões e tópicos
@@ -471,6 +550,63 @@ onMounted(loadPlanning);
           conclusão garantida.
         </p>
 
+        <section
+          v-if="timedTopicId && !activeTimerTopicVisible"
+          class="panel active-timer-panel"
+          aria-labelledby="active-timer-heading"
+        >
+          <div>
+            <p class="eyebrow">Sessão em andamento</p>
+            <h2 id="active-timer-heading">
+              {{ getTopic(timedTopicId)?.name ?? "Tópico de estudo" }}
+            </h2>
+            <p>
+              {{
+                getTopic(timedTopicId)
+                  ? subjectName(getTopic(timedTopicId)!)
+                  : ""
+              }}
+            </p>
+          </div>
+          <output
+            class="timer-display"
+            aria-live="off"
+            :aria-label="`Tempo de estudo: ${formatElapsedTime(activeStudyTimer.elapsedSeconds)}`"
+          >
+            {{ formatElapsedTime(activeStudyTimer.elapsedSeconds) }}
+          </output>
+          <span class="visually-hidden">
+            Ao finalizar, o tempo será arredondado para cima ao minuto.
+          </span>
+          <div class="timer-controls">
+            <button
+              class="secondary-button timer-control-button"
+              type="button"
+              @click="
+                activeStudyTimer.isRunning
+                  ? pauseStudyTimer()
+                  : resumeStudyTimer()
+              "
+            >
+              <span class="material-symbols-rounded" aria-hidden="true">
+                {{ activeStudyTimer.isRunning ? "pause" : "play_arrow" }}
+              </span>
+              {{ activeStudyTimer.isRunning ? "Pausar" : "Continuar" }}
+            </button>
+            <button
+              class="primary-button timer-control-button"
+              type="button"
+              :disabled="saving"
+              @click="finishTimedSession"
+            >
+              <span class="material-symbols-rounded" aria-hidden="true">
+                {{ saving ? "hourglass_top" : "stop" }}
+              </span>
+              {{ saving ? "Salvando..." : "Finalizar" }}
+            </button>
+          </div>
+        </section>
+
         <section class="panel weekly-plan-panel" aria-labelledby="week-heading">
           <div class="panel-section-heading">
             <div>
@@ -576,8 +712,88 @@ onMounted(loadPlanning);
                     >
                       Automático
                     </button>
-                    <details v-if="getTopic(planned.topicId)">
-                      <summary>Registrar sessão</summary>
+                    <div class="timer-controls">
+                      <output
+                        v-if="timedTopicId === planned.topicId"
+                        class="timer-display"
+                        aria-live="off"
+                        :aria-label="`Tempo de estudo: ${formatElapsedTime(activeStudyTimer.elapsedSeconds)}`"
+                      >
+                        {{ formatElapsedTime(activeStudyTimer.elapsedSeconds) }}
+                      </output>
+                      <span
+                        v-if="
+                          timedTopicId === planned.topicId &&
+                          !activeStudyTimer.isRunning
+                        "
+                        class="timer-paused-label"
+                      >
+                        Pausado
+                      </span>
+                      <button
+                        v-if="timedTopicId !== planned.topicId"
+                        class="text-button timer-start"
+                        type="button"
+                        :disabled="saving || timedTopicId !== null"
+                        :title="
+                          timedTopicId !== null
+                            ? 'Finalize ou pause o cronômetro atual antes de iniciar outro.'
+                            : 'Iniciar cronômetro de estudo'
+                        "
+                        @click="beginTimedSession(planned.topicId)"
+                      >
+                        <span
+                          class="material-symbols-rounded"
+                          aria-hidden="true"
+                          >timer</span
+                        >
+                        Iniciar cronômetro
+                      </button>
+                      <template v-else>
+                        <button
+                          class="secondary-button timer-control-button"
+                          type="button"
+                          :disabled="saving"
+                          @click="
+                            activeStudyTimer.isRunning
+                              ? pauseStudyTimer()
+                              : resumeStudyTimer()
+                          "
+                        >
+                          <span
+                            class="material-symbols-rounded"
+                            aria-hidden="true"
+                          >
+                            {{
+                              activeStudyTimer.isRunning
+                                ? "pause"
+                                : "play_arrow"
+                            }}
+                          </span>
+                          {{
+                            activeStudyTimer.isRunning ? "Pausar" : "Continuar"
+                          }}
+                        </button>
+                        <button
+                          class="primary-button timer-control-button"
+                          type="button"
+                          :disabled="saving"
+                          @click="finishTimedSession"
+                        >
+                          <span
+                            class="material-symbols-rounded"
+                            aria-hidden="true"
+                          >
+                            {{ saving ? "hourglass_top" : "stop" }}
+                          </span>
+                          {{ saving ? "Salvando..." : "Finalizar" }}
+                        </button>
+                      </template>
+                    </div>
+                    <details
+                      v-if="getTopic(planned.topicId) && timedTopicId === null"
+                    >
+                      <summary>Registrar manualmente</summary>
                       <form
                         class="session-form"
                         @submit.prevent="

@@ -99,6 +99,176 @@ describe("ContentView", () => {
     expect(wrapper.find(".content-empty").exists()).toBe(false);
   });
 
+  it("uses accessible icon buttons for topic actions and describes reordering controls", async () => {
+    currentUser.value = { id: "user-4", email: "student@example.com" };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        response({
+          subjects: [
+            {
+              id: "subject-1",
+              name: "Direito Constitucional",
+              description: "",
+              notes: "",
+              position: 0,
+              archived: false,
+            },
+          ],
+          topics: [
+            {
+              id: "topic-1",
+              subjectId: "subject-1",
+              name: "Direitos fundamentais",
+              description: "",
+              notes: "",
+              position: 0,
+              status: "not_started",
+              estimatedMinutes: null,
+              reviewDueAt: null,
+            },
+          ],
+          materials: [],
+        }),
+      ),
+    );
+
+    const wrapper = await mountContentView();
+
+    expect(
+      wrapper
+        .get('button[aria-label="Editar disciplina Direito Constitucional"]')
+        .text(),
+    ).toBe("edit");
+    expect(
+      wrapper
+        .get('button[aria-label="Arquivar disciplina Direito Constitucional"]')
+        .text(),
+    ).toBe("archive");
+    expect(
+      wrapper
+        .get('button[aria-label="Remover disciplina Direito Constitucional"]')
+        .text(),
+    ).toBe("delete");
+    expect(
+      wrapper.get('button[aria-label="Editar Direitos fundamentais"]').text(),
+    ).toBe("edit");
+    expect(
+      wrapper.get('button[aria-label="Remover Direitos fundamentais"]').text(),
+    ).toBe("delete");
+    expect(
+      wrapper
+        .get('button[aria-label="Mover Direitos fundamentais para cima"]')
+        .attributes("title"),
+    ).toBe("Mover tópico para cima");
+    expect(
+      wrapper
+        .get('button[aria-label="Mover Direitos fundamentais para baixo"]')
+        .attributes("title"),
+    ).toBe("Mover tópico para baixo");
+
+    await wrapper
+      .get('button[aria-label="Editar Direitos fundamentais"]')
+      .trigger("click");
+    expect(wrapper.text()).toContain("Editar tópico");
+  });
+
+  it("adds a link from the selected topic and shows it attached to that topic", async () => {
+    currentUser.value = { id: "user-5", email: "student@example.com" };
+    const materialInput: {
+      topicId: string | null;
+      title: string;
+      type: string;
+      url: string;
+      text: string;
+    }[] = [];
+    const topic = {
+      id: "topic-1",
+      subjectId: "subject-1",
+      name: "Direitos fundamentais",
+      description: "",
+      notes: "",
+      position: 0,
+      status: "not_started",
+      estimatedMinutes: null,
+      reviewDueAt: null,
+    };
+    const subject = {
+      id: "subject-1",
+      name: "Direito Constitucional",
+      description: "",
+      notes: "",
+      position: 0,
+      archived: false,
+    };
+    const materials: {
+      id: string;
+      subjectId: string;
+      topicId: string | null;
+      title: string;
+      type: string;
+      url: string;
+      text: string;
+    }[] = [];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.endsWith("/api/subjects/subject-1/materials")) {
+          const body = JSON.parse(
+            String(init?.body),
+          ) as (typeof materialInput)[number];
+          materialInput.push(body);
+          const savedMaterial = {
+            id: "material-1",
+            subjectId: "subject-1",
+            ...body,
+          };
+          materials.push(savedMaterial);
+          return response(savedMaterial, 201);
+        }
+        return response({
+          subjects: [subject],
+          topics: [topic],
+          materials,
+        });
+      }),
+    );
+
+    const wrapper = await mountContentView();
+    await wrapper.get(".topic-add-material").trigger("click");
+    const form = wrapper.get("form.content-form");
+    await form.get('input[maxlength="200"]').setValue("Aula sobre direitos");
+    await form
+      .get('input[type="url"]')
+      .setValue("https://example.com/direitos");
+    await form.trigger("submit");
+    await flushPromises();
+
+    expect(materialInput).toEqual([
+      {
+        topicId: "topic-1",
+        title: "Aula sobre direitos",
+        type: "other",
+        url: "https://example.com/direitos",
+        text: "",
+      },
+    ]);
+    expect(wrapper.get(".topic-materials").text()).toContain(
+      "Aula sobre direitos",
+    );
+    expect(wrapper.get(".topic-materials a").attributes("href")).toBe(
+      "https://example.com/direitos",
+    );
+    expect(
+      wrapper.get('button[aria-label="Editar Aula sobre direitos"]').text(),
+    ).toBe("edit");
+    expect(
+      wrapper.get('button[aria-label="Remover Aula sobre direitos"]').text(),
+    ).toBe("delete");
+  });
+
   it("searches without accent sensitivity and combines topic and material filters", async () => {
     currentUser.value = { id: "user-3", email: "student@example.com" };
     vi.stubGlobal(
@@ -158,6 +328,6 @@ describe("ContentView", () => {
     await selects[0]?.setValue("all");
     expect(wrapper.text()).toContain("Videoaula");
     await selects[1]?.setValue("book");
-    expect(wrapper.text()).not.toContain("Videoaula");
+    expect(wrapper.find(".material-panel").text()).not.toContain("Videoaula");
   });
 });

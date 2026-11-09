@@ -203,7 +203,7 @@ const subjectMaterials = computed(() =>
 );
 
 const selectedTopicMaterials = computed(() =>
-  subjectMaterials.value.filter(
+  content.value.materials.filter(
     (material) => material.topicId === selectedTopicId.value,
   ),
 );
@@ -607,7 +607,6 @@ function openTopicResult(topic: Topic) {
     </header>
 
     <main class="main-content">
-      <p class="eyebrow">Etapa 2 · MVP de conteúdo</p>
       <div class="content-page-heading">
         <div>
           <h1>Organize o que você vai estudar.</h1>
@@ -810,30 +809,46 @@ function openTopicResult(topic: Topic) {
                   Arquivada
                 </span>
               </div>
-              <div class="action-row">
+              <div class="action-row subject-actions">
                 <button
-                  class="secondary-button"
+                  class="icon-action icon-action--large"
                   type="button"
                   :disabled="saving"
+                  :aria-label="`Editar disciplina ${selectedSubject.name}`"
+                  title="Editar disciplina"
                   @click="openSubjectForm(selectedSubject)"
                 >
-                  Editar
+                  <span class="material-symbols-rounded" aria-hidden="true">
+                    edit
+                  </span>
                 </button>
                 <button
-                  class="secondary-button"
+                  class="icon-action icon-action--large"
                   type="button"
                   :disabled="saving"
+                  :aria-label="`${selectedSubject.archived ? 'Reativar' : 'Arquivar'} disciplina ${selectedSubject.name}`"
+                  :title="
+                    selectedSubject.archived
+                      ? 'Reativar disciplina'
+                      : 'Arquivar disciplina'
+                  "
                   @click="toggleArchived(selectedSubject)"
                 >
-                  {{ selectedSubject.archived ? "Reativar" : "Arquivar" }}
+                  <span class="material-symbols-rounded" aria-hidden="true">
+                    {{ selectedSubject.archived ? "unarchive" : "archive" }}
+                  </span>
                 </button>
                 <button
-                  class="danger-button"
+                  class="icon-action icon-action--large icon-action--danger"
                   type="button"
                   :disabled="saving"
+                  :aria-label="`Remover disciplina ${selectedSubject.name}`"
+                  title="Remover disciplina"
                   @click="removeSubject(selectedSubject)"
                 >
-                  Remover
+                  <span class="material-symbols-rounded" aria-hidden="true">
+                    delete
+                  </span>
                 </button>
               </div>
             </div>
@@ -985,9 +1000,12 @@ function openTopicResult(topic: Topic) {
                       statusFilter !== 'all'
                     "
                     :aria-label="`Mover ${topic.name} para cima`"
+                    title="Mover tópico para cima"
                     @click="moveTopic(topic, -1)"
                   >
-                    ↑
+                    <span class="material-symbols-rounded" aria-hidden="true">
+                      arrow_upward
+                    </span>
                   </button>
                   <button
                     class="icon-action"
@@ -1000,25 +1018,36 @@ function openTopicResult(topic: Topic) {
                       statusFilter !== 'all'
                     "
                     :aria-label="`Mover ${topic.name} para baixo`"
+                    title="Mover tópico para baixo"
                     @click="moveTopic(topic, 1)"
                   >
-                    ↓
+                    <span class="material-symbols-rounded" aria-hidden="true">
+                      arrow_downward
+                    </span>
                   </button>
                   <button
-                    class="text-button"
-                    type="button"
-                    :disabled="selectedSubject.archived"
-                    @click="openTopicForm(topic)"
-                  >
-                    Editar
-                  </button>
-                  <button
-                    class="danger-text-button"
+                    class="icon-action"
                     type="button"
                     :disabled="saving || selectedSubject.archived"
+                    :aria-label="`Editar ${topic.name}`"
+                    title="Editar tópico"
+                    @click="openTopicForm(topic)"
+                  >
+                    <span class="material-symbols-rounded" aria-hidden="true">
+                      edit
+                    </span>
+                  </button>
+                  <button
+                    class="icon-action icon-action--danger"
+                    type="button"
+                    :disabled="saving || selectedSubject.archived"
+                    :aria-label="`Remover ${topic.name}`"
+                    title="Remover tópico"
                     @click="removeTopic(topic)"
                   >
-                    Remover
+                    <span class="material-symbols-rounded" aria-hidden="true">
+                      delete
+                    </span>
                   </button>
                 </div>
               </li>
@@ -1046,6 +1075,17 @@ function openTopicResult(topic: Topic) {
                   Estado atual: {{ statusLabel(selectedTopic.status) }}
                 </p>
               </div>
+              <button
+                class="secondary-button topic-add-material"
+                type="button"
+                :disabled="saving || selectedSubject?.archived"
+                @click="openMaterialForm()"
+              >
+                <span class="material-symbols-rounded" aria-hidden="true">
+                  add_link
+                </span>
+                Adicionar link ao tópico
+              </button>
             </div>
             <label class="visually-hidden" for="topic-notes">
               Anotações do tópico {{ selectedTopic.name }}
@@ -1065,6 +1105,68 @@ function openTopicResult(topic: Topic) {
             >
               Salvar anotações
             </button>
+            <div class="topic-materials">
+              <h3>Links e materiais relacionados</h3>
+              <ul
+                v-if="selectedTopicMaterials.length"
+                class="topic-material-list"
+              >
+                <li
+                  v-for="material in selectedTopicMaterials"
+                  :key="material.id"
+                  class="topic-material-item"
+                >
+                  <div>
+                    <span class="material-kind">
+                      {{ materialTypeLabel(material.type) }}
+                    </span>
+                    <strong>{{ material.title }}</strong>
+                    <p v-if="material.text">{{ material.text }}</p>
+                    <a
+                      v-if="material.url"
+                      :href="material.url"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <span class="material-symbols-rounded" aria-hidden="true">
+                        open_in_new
+                      </span>
+                      Abrir link
+                      <span class="visually-hidden">(abre em nova aba)</span>
+                    </a>
+                  </div>
+                  <div class="topic-material-actions">
+                    <button
+                      class="icon-action"
+                      type="button"
+                      :disabled="saving || selectedSubject?.archived"
+                      :aria-label="`Editar ${material.title}`"
+                      title="Editar material"
+                      @click="openMaterialForm(material)"
+                    >
+                      <span class="material-symbols-rounded" aria-hidden="true">
+                        edit
+                      </span>
+                    </button>
+                    <button
+                      class="icon-action icon-action--danger"
+                      type="button"
+                      :disabled="saving || selectedSubject?.archived"
+                      :aria-label="`Remover ${material.title}`"
+                      title="Remover material"
+                      @click="removeMaterial(material)"
+                    >
+                      <span class="material-symbols-rounded" aria-hidden="true">
+                        delete
+                      </span>
+                    </button>
+                  </div>
+                </li>
+              </ul>
+              <p v-else class="field-help">
+                Nenhum link ou material associado a este tópico ainda.
+              </p>
+            </div>
           </section>
 
           <section
@@ -1192,25 +1294,37 @@ function openTopicResult(topic: Topic) {
                     target="_blank"
                     rel="noopener noreferrer"
                   >
+                    <span class="material-symbols-rounded" aria-hidden="true">
+                      open_in_new
+                    </span>
                     Abrir referência externa
                     <span class="visually-hidden">(abre em nova aba)</span>
                   </a>
                 </div>
-                <div class="action-row">
+                <div class="material-actions">
                   <button
-                    class="text-button"
+                    class="icon-action"
                     type="button"
+                    :disabled="saving || selectedSubject.archived"
+                    :aria-label="`Editar ${material.title}`"
+                    title="Editar material"
                     @click="openMaterialForm(material)"
                   >
-                    Editar
+                    <span class="material-symbols-rounded" aria-hidden="true">
+                      edit
+                    </span>
                   </button>
                   <button
-                    class="danger-text-button"
+                    class="icon-action icon-action--danger"
                     type="button"
                     :disabled="saving"
+                    :aria-label="`Remover ${material.title}`"
+                    title="Remover material"
                     @click="removeMaterial(material)"
                   >
-                    Remover
+                    <span class="material-symbols-rounded" aria-hidden="true">
+                      delete
+                    </span>
                   </button>
                 </div>
               </li>
@@ -1219,17 +1333,6 @@ function openTopicResult(topic: Topic) {
               Nenhum material corresponde aos filtros atuais. Você pode
               adicionar um link ou uma referência em texto.
             </p>
-
-            <div
-              v-if="selectedTopic && selectedTopicMaterials.length"
-              class="selected-topic-materials"
-            >
-              <h3>Materiais de {{ selectedTopic.name }}</h3>
-              <p>
-                {{ selectedTopicMaterials.length }} material(is) associado(s) ao
-                tópico selecionado.
-              </p>
-            </div>
           </section>
         </section>
 
