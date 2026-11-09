@@ -476,6 +476,7 @@ onMounted(loadPlanning);
         <RouterLink to="/">Visão geral</RouterLink>
         <RouterLink to="/content">Conteúdo</RouterLink>
         <RouterLink to="/planning">Planejamento</RouterLink>
+        <RouterLink to="/questions">Questões</RouterLink>
       </nav>
       <div class="account-menu">
         <span class="topbar-note">{{ currentUser?.email }}</span>

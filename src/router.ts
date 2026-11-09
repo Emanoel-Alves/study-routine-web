@@ -5,6 +5,7 @@ import LoginView from "./views/LoginView.vue";
 import NotFoundView from "./views/NotFoundView.vue";
 import OverviewView from "./views/OverviewView.vue";
 import PlanningView from "./views/PlanningView.vue";
+import QuestionsView from "./views/QuestionsView.vue";
 
 const router = createRouter({
   history: createWebHashHistory(import.meta.env.BASE_URL),
@@ -25,6 +26,12 @@ const router = createRouter({
       path: "/planning",
       name: "planning",
       component: PlanningView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: "/questions",
+      name: "questions",
+      component: QuestionsView,
       meta: { requiresAuth: true },
     },
     { path: "/login", name: "login", component: LoginView },

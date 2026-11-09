@@ -30,6 +30,10 @@ A busca considera disciplinas e tópicos sem diferenciar maiúsculas, minúscula
 
 O progresso da disciplina é a proporção de tópicos no estado **Estudado** em relação ao total de tópicos. Tópicos em **Revisão pendente** continuam fora da contagem de concluídos até que o estado seja atualizado.
 
+## Banco de questões
+
+Em **Questões**, adicione uma questão autorizada ou um resumo próprio, vincule-a a um tópico e registre alternativas, gabarito, explicação, banca, concurso, cargo, ano, número e link da fonte. Ao resolver, marque uma alternativa e confira a resposta; o gabarito e a explicação cadastrada aparecem depois da correção. A tesourinha elimina/restaura alternativas durante a tentativa. Questões anuladas ou desatualizadas ficam identificadas e fora da lista padrão de prática. Links do QConcursos e de outras fontes são guardados como referências e abertos no site original; a aplicação não importa nem copia o conteúdo dessas plataformas.
+
 ## Verificações
 
 ```powershell
