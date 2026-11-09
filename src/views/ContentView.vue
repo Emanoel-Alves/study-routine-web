@@ -207,6 +207,16 @@ const selectedTopicMaterials = computed(() =>
     (material) => material.topicId === selectedTopicId.value,
   ),
 );
+const materialsByTopic = computed(() => {
+  const grouped = new Map<string, Material[]>();
+  for (const material of content.value.materials) {
+    if (material.topicId === null) continue;
+    const topicMaterials = grouped.get(material.topicId) ?? [];
+    topicMaterials.push(material);
+    grouped.set(material.topicId, topicMaterials);
+  }
+  return grouped;
+});
 
 function subjectForTopic(topic: Topic): Subject | undefined {
   return content.value.subjects.find(
@@ -1049,6 +1059,40 @@ function openTopicResult(topic: Topic) {
                       delete
                     </span>
                   </button>
+                </div>
+                <div
+                  v-if="materialsByTopic.get(topic.id)?.length"
+                  class="topic-linked-materials"
+                >
+                  <span class="topic-linked-materials-label">
+                    <span class="material-symbols-rounded" aria-hidden="true">
+                      attach_file
+                    </span>
+                    Materiais deste tópico
+                  </span>
+                  <ul>
+                    <li
+                      v-for="material in materialsByTopic.get(topic.id)"
+                      :key="material.id"
+                    >
+                      <a
+                        v-if="material.url"
+                        :href="material.url"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {{ material.title }}
+                        <span
+                          class="material-symbols-rounded"
+                          aria-hidden="true"
+                        >
+                          open_in_new
+                        </span>
+                        <span class="visually-hidden">(abre em nova aba)</span>
+                      </a>
+                      <span v-else>{{ material.title }}</span>
+                    </li>
+                  </ul>
                 </div>
               </li>
             </ul>

@@ -732,7 +732,7 @@ onMounted(loadPlanning);
                       </span>
                       <button
                         v-if="timedTopicId !== planned.topicId"
-                        class="text-button timer-start"
+                        class="secondary-button timer-start"
                         type="button"
                         :disabled="saving || timedTopicId !== null"
                         :title="

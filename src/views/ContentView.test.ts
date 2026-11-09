@@ -258,6 +258,12 @@ describe("ContentView", () => {
     expect(wrapper.get(".topic-materials").text()).toContain(
       "Aula sobre direitos",
     );
+    expect(wrapper.get(".topic-card .topic-linked-materials").text()).toContain(
+      "Aula sobre direitos",
+    );
+    expect(
+      wrapper.get(".topic-card .topic-linked-materials a").attributes("href"),
+    ).toBe("https://example.com/direitos");
     expect(wrapper.get(".topic-materials a").attributes("href")).toBe(
       "https://example.com/direitos",
     );

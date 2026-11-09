@@ -156,6 +156,8 @@ describe("PlanningView timer", () => {
 
     const wrapper = await mountPlanningView();
     expect(wrapper.text()).toContain("Registrar manualmente");
+    expect(wrapper.get(".timer-start").classes()).toContain("secondary-button");
+    expect(wrapper.get(".timer-start").classes()).not.toContain("text-button");
     await wrapper.get(".timer-start").trigger("click");
     expect(wrapper.text()).not.toContain("Registrar manualmente");
     await vi.advanceTimersByTimeAsync(65_000);
