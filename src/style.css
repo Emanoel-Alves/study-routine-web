@@ -46,25 +46,160 @@ select option {
   color: var(--color-ink);
 }
 
-input[type="date"] {
-  color-scheme: light;
-  accent-color: var(--color-primary);
-}
-
-input[type="date"]::-webkit-calendar-picker-indicator {
-  width: 18px;
-  height: 18px;
-  margin-left: 8px;
-  opacity: 0.78;
-  cursor: pointer;
-  filter: invert(25%) sepia(25%) saturate(1358%) hue-rotate(129deg)
-    brightness(92%) contrast(91%);
-}
-
 body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
+}
+
+select:not([multiple]) {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 38px;
+  background-color: #fff;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%230c5553' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 17px;
+  cursor: pointer;
+}
+
+.custom-date-picker {
+  position: relative;
+}
+
+.date-picker-trigger {
+  display: flex;
+  width: 100%;
+  min-height: 42px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 11px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--color-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+}
+
+.date-picker-trigger:hover,
+.date-picker-trigger[aria-expanded="true"] {
+  border-color: var(--color-primary);
+  background: #fbfdfc;
+}
+
+.date-picker-trigger > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.date-picker-trigger .material-symbols-rounded {
+  flex: 0 0 auto;
+  color: var(--color-primary-dark);
+  font-size: 19px;
+}
+
+.date-picker-calendar {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 7px);
+  right: 0;
+  width: min(320px, calc(100vw - 48px));
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgb(23 47 50 / 14%);
+}
+
+.date-picker-heading,
+.date-picker-heading > div,
+.date-picker-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.date-picker-heading {
+  margin-bottom: 12px;
+}
+
+.date-picker-heading strong {
+  color: var(--color-ink);
+  font-size: 14px;
+  text-transform: capitalize;
+}
+
+.date-picker-heading .icon-action {
+  width: 30px;
+  height: 30px;
+}
+
+.date-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.date-picker-weekday {
+  padding: 5px 0;
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 680;
+  text-align: center;
+}
+
+.date-picker-day {
+  display: grid;
+  min-width: 0;
+  aspect-ratio: 1;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.date-picker-day:hover:not(:disabled),
+.date-picker-day--today:not(.date-picker-day--selected) {
+  border-color: #b9d8d2;
+  background: var(--color-primary-soft);
+  color: var(--color-primary-dark);
+}
+
+.date-picker-day--outside {
+  color: #9aa8a6;
+}
+
+.date-picker-day--selected {
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: 700;
+}
+
+.date-picker-day:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+.date-picker-footer {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border);
+}
+
+.date-picker-footer .text-button:disabled {
+  cursor: default;
+  opacity: 0.5;
 }
 
 button,
@@ -2161,5 +2296,20 @@ h1 {
       opacity: 1;
       transform: translateY(0);
     }
+  }
+
+  .filter-field select,
+  .content-form select,
+  .topic-status select,
+  .planned-topic-actions select {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 38px;
+    background-color: #fff;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%230c5553' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 17px;
+    cursor: pointer;
   }
 }

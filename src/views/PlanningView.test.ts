@@ -155,6 +155,19 @@ describe("PlanningView timer", () => {
     );
 
     const wrapper = await mountPlanningView();
+    await wrapper.get("#target-date-trigger").trigger("click");
+    expect(wrapper.find("#target-date-calendar").exists()).toBe(true);
+    expect(wrapper.find('input[type="date"]').exists()).toBe(false);
+    await wrapper.get(".date-picker-footer button:last-child").trigger("click");
+    expect(wrapper.find("#target-date-calendar").exists()).toBe(false);
+    expect(wrapper.get("#target-date-trigger").text()).toContain(
+      new Intl.DateTimeFormat("pt-BR", {
+        weekday: "long",
+        day: "2-digit",
+        month: "long",
+        timeZone: "UTC",
+      }).format(new Date(`${today}T12:00:00.000Z`)),
+    );
     expect(wrapper.text()).toContain("Registrar manualmente");
     expect(wrapper.get(".timer-start").classes()).toContain("secondary-button");
     expect(wrapper.get(".timer-start").classes()).not.toContain("text-button");

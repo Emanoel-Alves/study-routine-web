@@ -74,6 +74,8 @@ const dayLabels = [
   "Domingo",
 ];
 const today = new Date().toISOString().slice(0, 10);
+const targetDatePickerOpen = ref(false);
+const targetDatePickerMonth = ref(parseDateKey(today));
 
 const activeTopics = computed(() => {
   const activeSubjectIds = new Set(
@@ -129,6 +131,43 @@ const hasUnsavedPreferences = computed(
       ),
     }),
 );
+const datePickerMonthLabel = computed(() =>
+  new Intl.DateTimeFormat("pt-BR", {
+    month: "long",
+    year: "numeric",
+  }).format(targetDatePickerMonth.value),
+);
+const datePickerDays = computed(() => {
+  const firstOfMonth = new Date(
+    targetDatePickerMonth.value.getFullYear(),
+    targetDatePickerMonth.value.getMonth(),
+    1,
+  );
+  const mondayOffset = (firstOfMonth.getDay() + 6) % 7;
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(
+      firstOfMonth.getFullYear(),
+      firstOfMonth.getMonth(),
+      index - mondayOffset + 1,
+    );
+    const value = dateKey(date);
+    return {
+      value,
+      day: date.getDate(),
+      inMonth: date.getMonth() === firstOfMonth.getMonth(),
+      isToday: value === today,
+      isSelected: value === preferencesDraft.targetDate,
+      disabled: value < today,
+    };
+  });
+});
+const previousMonthDisabled = computed(() => {
+  const currentMonth = parseDateKey(today);
+  return (
+    targetDatePickerMonth.value.getFullYear() === currentMonth.getFullYear() &&
+    targetDatePickerMonth.value.getMonth() <= currentMonth.getMonth()
+  );
+});
 const summaryBySubject = computed(() => {
   return content.value.subjects
     .filter((subject) => !subject.archived)
@@ -158,6 +197,46 @@ function subjectName(topic: Topic): string {
     content.value.subjects.find((subject) => subject.id === topic.subjectId)
       ?.name ?? "Disciplina"
   );
+}
+
+function dateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function parseDateKey(value: string): Date {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year!, month! - 1, day);
+}
+
+function openTargetDatePicker(): void {
+  if (!targetDatePickerOpen.value) {
+    targetDatePickerMonth.value = parseDateKey(
+      preferencesDraft.targetDate ?? today,
+    );
+  }
+  targetDatePickerOpen.value = !targetDatePickerOpen.value;
+}
+
+function changeTargetDateMonth(amount: -1 | 1): void {
+  targetDatePickerMonth.value = new Date(
+    targetDatePickerMonth.value.getFullYear(),
+    targetDatePickerMonth.value.getMonth() + amount,
+    1,
+  );
+}
+
+function selectTargetDate(value: string): void {
+  if (value < today) return;
+  preferencesDraft.targetDate = value;
+  targetDatePickerOpen.value = false;
+}
+
+function clearTargetDate(): void {
+  preferencesDraft.targetDate = null;
+  targetDatePickerOpen.value = false;
 }
 
 function getTopic(topicId: string): Topic | undefined {
@@ -513,14 +592,129 @@ onMounted(loadPlanning);
                 step="5"
               />
             </label>
-            <label class="filter-field">
-              <span>Data-alvo (opcional)</span>
-              <input
-                v-model="preferencesDraft.targetDate"
-                type="date"
-                :min="today"
-              />
-            </label>
+            <div class="filter-field">
+              <span id="target-date-label">Data-alvo (opcional)</span>
+              <div class="custom-date-picker">
+                <button
+                  id="target-date-trigger"
+                  class="date-picker-trigger"
+                  type="button"
+                  aria-haspopup="dialog"
+                  :aria-expanded="targetDatePickerOpen"
+                  aria-controls="target-date-calendar"
+                  aria-labelledby="target-date-label"
+                  @click="openTargetDatePicker"
+                >
+                  <span>
+                    {{
+                      preferencesDraft.targetDate
+                        ? formatDate(preferencesDraft.targetDate)
+                        : "Selecione uma data"
+                    }}
+                  </span>
+                  <span class="material-symbols-rounded" aria-hidden="true">
+                    calendar_month
+                  </span>
+                </button>
+                <div
+                  v-if="targetDatePickerOpen"
+                  id="target-date-calendar"
+                  class="date-picker-calendar"
+                  role="dialog"
+                  aria-label="Escolher data-alvo"
+                >
+                  <div class="date-picker-heading">
+                    <strong>{{ datePickerMonthLabel }}</strong>
+                    <div>
+                      <button
+                        class="icon-action"
+                        type="button"
+                        aria-label="Mês anterior"
+                        title="Mês anterior"
+                        :disabled="previousMonthDisabled"
+                        @click="changeTargetDateMonth(-1)"
+                      >
+                        <span
+                          class="material-symbols-rounded"
+                          aria-hidden="true"
+                          >chevron_left</span
+                        >
+                      </button>
+                      <button
+                        class="icon-action"
+                        type="button"
+                        aria-label="Próximo mês"
+                        title="Próximo mês"
+                        @click="changeTargetDateMonth(1)"
+                      >
+                        <span
+                          class="material-symbols-rounded"
+                          aria-hidden="true"
+                          >chevron_right</span
+                        >
+                      </button>
+                    </div>
+                  </div>
+                  <div
+                    class="date-picker-grid"
+                    role="group"
+                    aria-label="Dias do mês"
+                  >
+                    <span
+                      v-for="weekday in [
+                        'Seg',
+                        'Ter',
+                        'Qua',
+                        'Qui',
+                        'Sex',
+                        'Sáb',
+                        'Dom',
+                      ]"
+                      :key="weekday"
+                      class="date-picker-weekday"
+                    >
+                      {{ weekday }}
+                    </span>
+                    <button
+                      v-for="day in datePickerDays"
+                      :key="day.value"
+                      class="date-picker-day"
+                      :class="{
+                        'date-picker-day--outside': !day.inMonth,
+                        'date-picker-day--today': day.isToday,
+                        'date-picker-day--selected': day.isSelected,
+                      }"
+                      type="button"
+                      :disabled="day.disabled"
+                      :aria-label="formatDate(day.value)"
+                      :aria-pressed="day.isSelected"
+                      @click="selectTargetDate(day.value)"
+                    >
+                      {{ day.day }}
+                    </button>
+                  </div>
+                  <div class="date-picker-footer">
+                    <button
+                      v-if="preferencesDraft.targetDate"
+                      class="text-button"
+                      type="button"
+                      @click="clearTargetDate"
+                    >
+                      Limpar data
+                    </button>
+                    <span v-else />
+                    <button
+                      class="text-button"
+                      type="button"
+                      :disabled="today === preferencesDraft.targetDate"
+                      @click="selectTargetDate(today)"
+                    >
+                      Hoje
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
           <p v-if="emptyStudyDays" class="inline-empty">
             Selecione ao menos um dia para gerar um plano semanal.
