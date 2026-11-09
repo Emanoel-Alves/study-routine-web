@@ -20,7 +20,7 @@ O Vite inicia em `http://localhost:5173`. Configure `VITE_API_URL` no `.env` par
 
 ## Autenticação
 
-O cadastro é privado e exige o código de convite configurado na API. Tokens de acesso duram uma hora e ficam somente na memória da página; ao recarregar ou fechar o navegador, será necessário entrar novamente. Não salve tokens em `localStorage` ou no bundle público.
+O cadastro é privado e exige o código de convite configurado na API. Tokens de acesso duram uma hora e ficam somente na memória da página. A API mantém a sessão por até 30 dias em um cookie `HttpOnly`, `Secure` em produção, e emite um novo token de acesso ao recarregar; nenhum token ou dado pessoal de autenticação é salvo em `localStorage`. O navegador precisa aceitar cookies entre sites para manter a sessão no GitHub Pages e no Render.
 
 ## Conteúdo de estudo
 

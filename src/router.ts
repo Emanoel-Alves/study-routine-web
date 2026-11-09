@@ -33,8 +33,12 @@ const router = createRouter({
 });
 
 router.beforeEach(async (to) => {
-  if (to.meta.requiresAuth) {
-    if (!currentUser.value && !(await restoreSession())) {
+  if (to.meta.requiresAuth || to.name === "login") {
+    if (
+      !currentUser.value &&
+      !(await restoreSession()) &&
+      to.meta.requiresAuth
+    ) {
       return { name: "login", query: { redirect: to.fullPath } };
     }
   }

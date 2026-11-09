@@ -317,7 +317,9 @@ watch(selectedTopicId, () => {
 onMounted(loadContent);
 
 function logoutAndReturnToLogin() {
-  logout();
+  void logout().catch((error: unknown) => {
+    console.error("Não foi possível encerrar a sessão no servidor.", error);
+  });
   void router.replace({ name: "login" });
 }
 

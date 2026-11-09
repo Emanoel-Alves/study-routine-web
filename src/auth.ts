@@ -14,6 +14,7 @@ interface AuthResponse {
 const apiBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
 const accessToken = ref<string | null>(null);
 export const currentUser = ref<AuthenticatedUser | null>(null);
+let hasPersistentSession = false;
 
 function apiUrl(path: string): URL {
   return new URL(path, apiBaseUrl);
@@ -40,12 +41,14 @@ async function authenticate(
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload),
+    credentials: "include",
   });
   if (!response.ok) throw new Error(await getErrorMessage(response));
 
   const result = (await response.json()) as AuthResponse;
   accessToken.value = result.accessToken;
   currentUser.value = result.user;
+  hasPersistentSession = true;
 }
 
 export function login(email: string, password: string): Promise<void> {
@@ -60,10 +63,20 @@ export function register(
   return authenticate("/api/auth/register", { email, password, inviteCode });
 }
 
-export function logout(): void {
+export async function logout(): Promise<void> {
+  const shouldEndServerSession = hasPersistentSession;
+  hasPersistentSession = false;
   accessToken.value = null;
   currentUser.value = null;
   resetStudyTimer();
+
+  if (!shouldEndServerSession) return;
+
+  const response = await fetch(apiUrl("/api/auth/logout"), {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!response.ok) throw new Error(await getErrorMessage(response));
 }
 
 export async function requestApi<T>(
@@ -78,31 +91,41 @@ export async function requestApi<T>(
     headers.set("content-type", "application/json");
   }
 
-  const response = await fetch(apiUrl(path), { ...init, headers });
+  const response = await fetch(apiUrl(path), {
+    ...init,
+    headers,
+    credentials: "include",
+  });
   if (!response.ok) throw new Error(await getErrorMessage(response));
   return (await response.json()) as T;
 }
 
 export async function restoreSession(): Promise<boolean> {
-  const token = accessToken.value;
-  if (!token) return false;
+  if (currentUser.value) return true;
 
   try {
-    const response = await fetch(apiUrl("/api/auth/me"), {
-      headers: { authorization: `Bearer ${token}` },
+    const response = await fetch(apiUrl("/api/auth/session"), {
+      method: "POST",
+      credentials: "include",
     });
-    if (!response.ok) {
-      logout();
+    if (response.status === 401) {
+      accessToken.value = null;
+      currentUser.value = null;
+      hasPersistentSession = false;
       return false;
     }
+    if (!response.ok) throw new Error(await getErrorMessage(response));
 
-    const result = (await response.json()) as {
-      user: AuthenticatedUser;
-    };
+    const result = (await response.json()) as AuthResponse;
+    accessToken.value = result.accessToken;
     currentUser.value = result.user;
+    hasPersistentSession = true;
     return true;
-  } catch {
-    logout();
+  } catch (error) {
+    accessToken.value = null;
+    currentUser.value = null;
+    hasPersistentSession = false;
+    console.error("Não foi possível restaurar a sessão.", error);
     return false;
   }
 }
