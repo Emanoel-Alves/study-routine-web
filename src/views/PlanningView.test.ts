@@ -113,6 +113,15 @@ describe("PlanningView timer", () => {
           });
         }
         return response({
+          plans: [
+            {
+              id: "default",
+              name: "Meu planejamento",
+              active: true,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+          activePlan: { id: "default", name: "Meu planejamento" },
           preferences: {
             studyDays: [weekday],
             minutesPerDay: 60,
@@ -210,5 +219,98 @@ describe("PlanningView timer", () => {
     expect(wrapper.text()).toContain("Sessão de 1 min 15 s registrada.");
     expect(wrapper.text()).toContain("Registrar manualmente");
     expect(wrapper.text()).toContain("Sessões desta semana");
+  });
+
+  it("creates a named plan and switches back to the previous one", async () => {
+    currentUser.value = { id: "user-1", email: "student@example.com" };
+    const today = new Date().toISOString().slice(0, 10);
+    const weekday = (new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7;
+    const plans = [
+      {
+        id: "default",
+        name: "Meu planejamento",
+        active: true,
+        createdAt: new Date().toISOString(),
+      },
+    ];
+    let activePlanId = "default";
+    let nextPlanId = 1;
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.endsWith("/api/content")) {
+          return response({ subjects: [], topics: [], materials: [] });
+        }
+        if (url.endsWith("/api/planning/plans") && init?.method === "POST") {
+          const { name } = JSON.parse(String(init.body)) as { name: string };
+          const plan = {
+            id: `plan-${nextPlanId++}`,
+            name,
+            active: true,
+            createdAt: new Date().toISOString(),
+          };
+          for (const item of plans) item.active = false;
+          plans.push(plan);
+          activePlanId = plan.id;
+          return response(plan, 201);
+        }
+        if (url.includes("/api/planning/plans/") && url.endsWith("/activate")) {
+          const planId = url.split("/").at(-2);
+          for (const item of plans) item.active = item.id === planId;
+          activePlanId = planId ?? "default";
+          return response(plans.find((item) => item.id === activePlanId));
+        }
+        return response({
+          plans,
+          activePlan: {
+            id: activePlanId,
+            name: plans.find((item) => item.id === activePlanId)?.name ?? "",
+          },
+          preferences: {
+            studyDays: [weekday],
+            minutesPerDay: activePlanId === "default" ? 90 : 60,
+            targetDate: null,
+          },
+          plan: {
+            weekStart: today,
+            weekEnd: today,
+            days: [],
+            unscheduledTopics: [],
+            totalAvailableMinutes: 0,
+            plannedMinutes: 0,
+            workloadMinutes: 0,
+            weeklyStudiedMinutes: 0,
+            weeklySessionCount: 0,
+            deadline: null,
+          },
+          sessions: [],
+        });
+      }),
+    );
+
+    const wrapper = await mountPlanningView();
+    await wrapper.get(".planning-profile-panel button").trigger("click");
+    await wrapper.get("#planning-profile-name").setValue("Concurso UFC 2027");
+    await wrapper.get(".planning-profile-form").trigger("submit");
+    await flushPromises();
+
+    expect(wrapper.text()).toContain(
+      'Planejamento "Concurso UFC 2027" criado e selecionado.',
+    );
+    const planSelect = wrapper.get(".planning-profile-select select");
+    expect((planSelect.element as HTMLSelectElement).value).toBe("plan-1");
+
+    await planSelect.setValue("default");
+    await flushPromises();
+    expect(wrapper.text()).toContain(
+      'Planejamento "Meu planejamento" selecionado.',
+    );
+    expect((planSelect.element as HTMLSelectElement).value).toBe("default");
+    expect(wrapper.get('input[type="number"]').element).toHaveProperty(
+      "value",
+      "90",
+    );
   });
 });

@@ -1858,6 +1858,29 @@ h1 {
   padding: 22px;
 }
 
+.planning-profile-panel {
+  margin-bottom: 16px;
+  padding: 22px;
+}
+
+.planning-profile-select {
+  max-width: 460px;
+  margin-top: 16px;
+}
+
+.planning-profile-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+  max-width: 720px;
+  margin-top: 16px;
+}
+
+.planning-profile-form .form-actions {
+  margin: 0;
+}
+
 .panel-subtitle {
   max-width: 660px;
   margin: 0;
@@ -2233,6 +2256,10 @@ h1 {
 @media (max-width: 800px) {
   .planning-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .planning-profile-form {
+    grid-template-columns: 1fr;
   }
 }
 

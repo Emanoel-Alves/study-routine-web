@@ -4,6 +4,8 @@ import { RouterLink, useRouter } from "vue-router";
 import { currentUser, logout } from "../auth";
 import { getContent, type ContentSnapshot, type Topic } from "../content";
 import {
+  activateStudyPlan,
+  createStudyPlan,
   getPlanning,
   movePlannedTopic,
   registerSession,
@@ -46,6 +48,8 @@ const emptyPlanning: PlanningSnapshot = {
     weeklySessionCount: 0,
     deadline: null,
   },
+  plans: [],
+  activePlan: { id: "", name: "" },
   sessions: [],
 };
 const content = ref<ContentSnapshot>(emptyContent);
@@ -54,6 +58,9 @@ const loading = ref(true);
 const saving = ref(false);
 const errorMessage = ref("");
 const successMessage = ref("");
+const selectedPlanId = ref("");
+const planFormOpen = ref(false);
+const planNameDraft = ref("");
 const timedTopicId = computed(() => activeStudyTimer.topicId);
 const preferencesDraft = reactive<StudyPreferences>({
   studyDays: [0, 1, 2, 3, 4],
@@ -313,6 +320,7 @@ async function loadPlanning(): Promise<boolean> {
     ]);
     planning.value = planningResult;
     content.value = contentResult;
+    selectedPlanId.value = planningResult.activePlan.id;
     preferencesDraft.studyDays = [...planningResult.preferences.studyDays];
     preferencesDraft.minutesPerDay = planningResult.preferences.minutesPerDay;
     preferencesDraft.targetDate = planningResult.preferences.targetDate;
@@ -325,6 +333,57 @@ async function loadPlanning(): Promise<boolean> {
     return false;
   } finally {
     loading.value = false;
+  }
+}
+
+async function createPlan(): Promise<void> {
+  const name = planNameDraft.value.trim();
+  if (!name) {
+    errorMessage.value = "Informe um nome para o planejamento.";
+    return;
+  }
+  saving.value = true;
+  errorMessage.value = "";
+  successMessage.value = "";
+  try {
+    await createStudyPlan(name);
+    planNameDraft.value = "";
+    planFormOpen.value = false;
+    if (!(await loadPlanning())) return;
+    successMessage.value = `Planejamento "${name}" criado e selecionado.`;
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error
+        ? error.message
+        : "Não foi possível criar o planejamento.";
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function changeActivePlan(): Promise<void> {
+  if (
+    !selectedPlanId.value ||
+    selectedPlanId.value === planning.value.activePlan.id
+  ) {
+    return;
+  }
+  const planId = selectedPlanId.value;
+  saving.value = true;
+  errorMessage.value = "";
+  successMessage.value = "";
+  try {
+    await activateStudyPlan(planId);
+    if (!(await loadPlanning())) return;
+    successMessage.value = `Planejamento "${planning.value.activePlan.name}" selecionado.`;
+  } catch (error) {
+    selectedPlanId.value = planning.value.activePlan.id;
+    errorMessage.value =
+      error instanceof Error
+        ? error.message
+        : "Não foi possível trocar de planejamento.";
+  } finally {
+    saving.value = false;
   }
 }
 
@@ -535,6 +594,83 @@ onMounted(loadPlanning);
       </p>
 
       <template v-else>
+        <section class="panel planning-profile-panel">
+          <div class="panel-section-heading">
+            <div>
+              <h2>Planejamento em uso</h2>
+              <p class="panel-subtitle">
+                Cada planejamento guarda sua própria disponibilidade e seus
+                ajustes semanais. O progresso e o histórico de sessões são
+                compartilhados.
+              </p>
+            </div>
+            <button
+              class="secondary-button"
+              type="button"
+              :disabled="saving"
+              @click="planFormOpen = !planFormOpen"
+            >
+              <span class="material-symbols-rounded" aria-hidden="true">
+                add
+              </span>
+              Novo planejamento
+            </button>
+          </div>
+          <label class="filter-field planning-profile-select">
+            <span>Escolha qual planejamento seguir</span>
+            <select
+              v-model="selectedPlanId"
+              :disabled="saving || planning.plans.length < 2"
+              @change="changeActivePlan"
+            >
+              <option
+                v-for="planOption in planning.plans"
+                :key="planOption.id"
+                :value="planOption.id"
+              >
+                {{ planOption.name }}{{ planOption.active ? " · em uso" : "" }}
+              </option>
+            </select>
+          </label>
+          <form
+            v-if="planFormOpen"
+            class="planning-profile-form"
+            @submit.prevent="createPlan"
+          >
+            <label class="filter-field" for="planning-profile-name">
+              <span>Nome do novo planejamento</span>
+              <input
+                id="planning-profile-name"
+                v-model="planNameDraft"
+                type="text"
+                maxlength="80"
+                placeholder="Ex.: Concurso UFC 2027"
+                required
+              />
+            </label>
+            <div class="form-actions">
+              <button
+                class="primary-button"
+                type="submit"
+                :disabled="saving || !planNameDraft.trim()"
+              >
+                {{ saving ? "Criando..." : "Criar e seguir" }}
+              </button>
+              <button
+                class="secondary-button"
+                type="button"
+                :disabled="saving"
+                @click="
+                  planFormOpen = false;
+                  planNameDraft = '';
+                "
+              >
+                Cancelar
+              </button>
+            </div>
+          </form>
+        </section>
+
         <section class="planning-summary" aria-label="Resumo do progresso">
           <article class="summary-card">
             <span>Progresso geral</span>
@@ -793,7 +929,7 @@ onMounted(loadPlanning);
             {{ formatElapsedTime(activeStudyTimer.elapsedSeconds) }}
           </output>
           <span class="visually-hidden">
-            Ao finalizar, o tempo será arredondado para cima ao minuto.
+            Ao finalizar, a duração medida será registrada em segundos exatos.
           </span>
           <div class="timer-controls">
             <button

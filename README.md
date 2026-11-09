@@ -58,7 +58,7 @@ O site do Pages é público, mesmo quando o código-fonte estiver em um reposit�
 
 ## Planejamento
 
-Na página **Planejamento**, configure os dias e minutos disponíveis e uma data-alvo opcional. O plano semanal distribui tópicos pendentes, indica o que não coube na capacidade e permite ajustes manuais. O cronômetro pode ser iniciado, pausado, retomado e finalizado; a sessão só é enviada à API ao finalizar e conserva os segundos medidos. O resumo soma o tempo real sem arredondar cada sessão curta para um minuto; sessões manuais continuam registradas em minutos. Se o envio falhar, o cronômetro fica pausado para tentar novamente.
+Na página **Planejamento**, crie perfis nomeados para diferentes objetivos, como concursos, e escolha no seletor qual seguir. Cada perfil mantém seus próprios dias, tempo disponível, data-alvo e ajustes manuais da semana; o perfil anterior continua salvo e pode ser reativado. Conteúdos, estados dos tópicos, progresso e histórico de sessões são compartilhados entre os perfis. Cada novo perfil começa com a disponibilidade padrão. O plano semanal distribui tópicos pendentes, indica o que não coube na capacidade e permite ajustes manuais. O cronômetro pode ser iniciado, pausado, retomado e finalizado; a sessão só é enviada à API ao finalizar e conserva os segundos medidos. O resumo soma o tempo real sem arredondar cada sessão curta para um minuto; sessões manuais continuam registradas em minutos. Se o envio falhar, o cronômetro fica pausado para tentar novamente.
 
 A visão geral apresenta um resumo do plano da semana atual, o progresso geral e as revisões pendentes. O MVP usa planejamento semanal (não uma grade mensal); a semana completa e seus ajustes ficam na página **Planejamento**.
 

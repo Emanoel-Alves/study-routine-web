@@ -59,9 +59,18 @@ export interface StudySession {
 }
 
 export interface PlanningSnapshot {
+  plans: StudyPlanSummary[];
+  activePlan: Pick<StudyPlanSummary, "id" | "name">;
   preferences: StudyPreferences;
   plan: WeeklyPlan;
   sessions: StudySession[];
+}
+
+export interface StudyPlanSummary {
+  id: string;
+  name: string;
+  active: boolean;
+  createdAt: string;
 }
 
 export interface PlanningSessionResult {
@@ -75,6 +84,22 @@ export interface PlanningSessionResult {
 
 export function getPlanning(): Promise<PlanningSnapshot> {
   return requestApi("/api/planning");
+}
+
+export function createStudyPlan(name: string): Promise<StudyPlanSummary> {
+  return requestApi("/api/planning/plans", {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+}
+
+export function activateStudyPlan(planId: string): Promise<StudyPlanSummary> {
+  return requestApi(
+    `/api/planning/plans/${encodeURIComponent(planId)}/activate`,
+    {
+      method: "PATCH",
+    },
+  );
 }
 
 export function savePreferences(
