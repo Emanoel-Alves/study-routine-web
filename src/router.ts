@@ -32,8 +32,10 @@ const router = createRouter({
   ],
 });
 
-router.beforeEach(async (to) => {
-  if (to.meta.requiresAuth || to.name === "login") {
+router.beforeEach(async (to, from) => {
+  const shouldRestoreSession =
+    to.meta.requiresAuth || (to.name === "login" && from.name === undefined);
+  if (shouldRestoreSession) {
     if (
       !currentUser.value &&
       !(await restoreSession()) &&

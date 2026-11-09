@@ -447,11 +447,13 @@ async function finishTimedSession() {
   }
 }
 
-function logoutAndReturnToLogin() {
-  void logout().catch((error: unknown) => {
+async function logoutAndReturnToLogin() {
+  try {
+    await logout();
+  } catch (error) {
     console.error("Não foi possível encerrar a sessão no servidor.", error);
-  });
-  void router.replace({ name: "login" });
+  }
+  await router.replace({ name: "login" });
 }
 
 function sessionTopicName(session: StudySession): string {
