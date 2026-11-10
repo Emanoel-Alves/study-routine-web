@@ -2288,12 +2288,18 @@ h1 {
 }
 
 .timer-focus-trigger {
-  display: inline-grid;
-  width: 36px;
-  height: 36px;
-  flex: 0 0 36px;
-  place-items: center;
-  visibility: visible;
+  display: inline-flex;
+  min-height: 40px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 10px;
+  white-space: nowrap;
+}
+
+.timer-focus-trigger .material-symbols-rounded {
+  font-size: 19px;
 }
 
 .timer-start {

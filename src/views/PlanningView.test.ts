@@ -269,6 +269,9 @@ describe("PlanningView timer", () => {
     expect(wrapper.get(".timer-display").text()).toBe("00:01:05");
     const timerActions = wrapper.get(".timer-action-group");
     expect(timerActions.find(".timer-focus-trigger").exists()).toBe(true);
+    expect(timerActions.find(".timer-focus-trigger").text()).toContain(
+      "Expandir",
+    );
     expect(timerActions.findAll(".timer-control-button")).toHaveLength(2);
     await wrapper.get(".timer-focus-trigger").trigger("click");
     expect(wrapper.get('[role="dialog"]').text()).toContain(

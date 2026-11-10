@@ -1278,15 +1278,16 @@ onBeforeUnmount(() => {
           <div class="timer-controls">
             <div class="timer-action-group">
               <button
-                class="icon-action timer-focus-trigger"
+                class="secondary-button timer-focus-trigger"
                 type="button"
-                aria-label="Abrir cronômetro em tela cheia"
-                title="Abrir cronômetro em tela cheia"
+                aria-label="Expandir cronômetro"
+                title="Expandir cronômetro"
                 @click="focusTimerOpen = true"
               >
                 <span class="material-symbols-rounded" aria-hidden="true">
                   open_in_full
                 </span>
+                Expandir
               </button>
               <button
                 class="secondary-button timer-control-button"
@@ -1490,10 +1491,10 @@ onBeforeUnmount(() => {
                       <template v-else>
                         <div class="timer-action-group">
                           <button
-                            class="icon-action timer-focus-trigger"
+                            class="secondary-button timer-focus-trigger"
                             type="button"
-                            aria-label="Abrir cronômetro em tela cheia"
-                            title="Abrir cronômetro em tela cheia"
+                            aria-label="Expandir cronômetro"
+                            title="Expandir cronômetro"
                             @click="focusTimerOpen = true"
                           >
                             <span
@@ -1502,6 +1503,7 @@ onBeforeUnmount(() => {
                             >
                               open_in_full
                             </span>
+                            Expandir
                           </button>
                           <button
                             class="secondary-button timer-control-button"
