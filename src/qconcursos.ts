@@ -17,7 +17,11 @@ export function qconcursosUrl(query: string, subjectName?: string): string {
     return fcpcUfcGovernanceExamUrl;
   }
 
-  const url = new URL("https://www.qconcursos.com/nova-busca");
+  const url = new URL(
+    "https://www.qconcursos.com/questoes-de-concursos/questoes",
+  );
+  url.searchParams.set("exclude_nullified", "false");
+  url.searchParams.set("exclude_outdated", "false");
   url.searchParams.set("q", query);
   return url.toString();
 }

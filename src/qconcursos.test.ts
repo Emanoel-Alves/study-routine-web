@@ -15,7 +15,7 @@ describe("qconcursosUrl", () => {
 
   it("searches other subjects and topics across contests", () => {
     expect(qconcursosUrl("Modelagem relacional", "Banco de Dados")).toBe(
-      "https://www.qconcursos.com/nova-busca?q=Modelagem+relacional",
+      "https://www.qconcursos.com/questoes-de-concursos/questoes?exclude_nullified=false&exclude_outdated=false&q=Modelagem+relacional",
     );
   });
 });

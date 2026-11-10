@@ -262,7 +262,7 @@ describe("PlanningView timer", () => {
       'a[aria-label="Buscar Modelagem relacional em concursos no QConcursos"]',
     );
     expect(qconcursosLink.attributes("href")).toBe(
-      "https://www.qconcursos.com/nova-busca?q=Modelagem+relacional",
+      "https://www.qconcursos.com/questoes-de-concursos/questoes?exclude_nullified=false&exclude_outdated=false&q=Modelagem+relacional",
     );
     expect(qconcursosLink.attributes("target")).toBe("_blank");
     expect(qconcursosLink.attributes("rel")).toBe("noopener noreferrer");

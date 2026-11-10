@@ -142,7 +142,7 @@ describe("ContentView", () => {
       'a[aria-label="Buscar Direito Constitucional em concursos no QConcursos"]',
     );
     expect(subjectQconcursosLink.attributes("href")).toBe(
-      "https://www.qconcursos.com/nova-busca?q=Direito+Constitucional",
+      "https://www.qconcursos.com/questoes-de-concursos/questoes?exclude_nullified=false&exclude_outdated=false&q=Direito+Constitucional",
     );
     expect(subjectQconcursosLink.attributes("target")).toBe("_blank");
     expect(subjectQconcursosLink.attributes("rel")).toBe("noopener noreferrer");
@@ -153,7 +153,7 @@ describe("ContentView", () => {
       'a[aria-label="Buscar Direitos fundamentais em concursos no QConcursos"]',
     );
     expect(topicQconcursosLink.attributes("href")).toBe(
-      "https://www.qconcursos.com/nova-busca?q=Direitos+fundamentais",
+      "https://www.qconcursos.com/questoes-de-concursos/questoes?exclude_nullified=false&exclude_outdated=false&q=Direitos+fundamentais",
     );
     expect(topicQconcursosLink.attributes("target")).toBe("_blank");
     expect(topicQconcursosLink.attributes("rel")).toBe("noopener noreferrer");
