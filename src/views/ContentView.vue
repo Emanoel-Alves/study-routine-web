@@ -2,7 +2,9 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { RouterLink, useRouter } from "vue-router";
 import AppSelect from "../components/AppSelect.vue";
+import ConfirmDialog from "../components/ConfirmDialog.vue";
 import { currentUser, logout } from "../auth";
+import { requestConfirmation } from "../confirm-dialog";
 import {
   createMaterial,
   createSubject,
@@ -403,11 +405,13 @@ async function removeSubject(subject: Subject) {
     `${materialCount} material(is)`,
     "e todas as anotações associadas",
   ].join(", ");
-  if (
-    !window.confirm(
-      `Remover definitivamente "${subject.name}"? Também serão removidos ${impact}.`,
-    )
-  ) {
+  const confirmed = await requestConfirmation({
+    title: "Remover disciplina?",
+    message: `Remover definitivamente "${subject.name}"? Também serão removidos ${impact}.`,
+    confirmLabel: "Remover disciplina",
+    danger: true,
+  });
+  if (!confirmed) {
     return;
   }
   await performMutation(
@@ -463,11 +467,13 @@ async function submitTopic() {
 }
 
 async function importMatrix() {
-  if (
-    !window.confirm(
+  const confirmed = await requestConfirmation({
+    title: "Adicionar matriz de estudos?",
+    message:
       "Adicionar à sua conta a matriz de 8 disciplinas e 62 tópicos, incluindo Língua Portuguesa e Legislação do Edital UFC nº 01/2024? As referências aparecem nos materiais. Itens com nomes já existentes não serão duplicados nem sobrescritos.",
-    )
-  ) {
+    confirmLabel: "Adicionar matriz",
+  });
+  if (!confirmed) {
     return;
   }
   importingMatrix.value = true;
@@ -534,11 +540,13 @@ async function removeTopic(topic: Topic) {
   const materialCount = content.value.materials.filter(
     (material) => material.topicId === topic.id,
   ).length;
-  if (
-    !window.confirm(
-      `Remover "${topic.name}" e seus ${materialCount} material(is) associados?`,
-    )
-  ) {
+  const confirmed = await requestConfirmation({
+    title: "Remover tópico?",
+    message: `Remover "${topic.name}" e seus ${materialCount} material(is) associados?`,
+    confirmLabel: "Remover tópico",
+    danger: true,
+  });
+  if (!confirmed) {
     return;
   }
   await performMutation(
@@ -595,7 +603,13 @@ async function submitMaterial() {
 }
 
 async function removeMaterial(material: Material) {
-  if (!window.confirm(`Remover o material "${material.title}"?`)) return;
+  const confirmed = await requestConfirmation({
+    title: "Remover material?",
+    message: `Remover o material "${material.title}"?`,
+    confirmLabel: "Remover material",
+    danger: true,
+  });
+  if (!confirmed) return;
   await performMutation(
     () => deleteMaterial(material.id),
     () => undefined,
@@ -1424,4 +1438,5 @@ function openTopicResult(topic: Topic) {
       </section>
     </main>
   </div>
+  <ConfirmDialog />
 </template>

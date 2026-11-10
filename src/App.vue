@@ -26,6 +26,7 @@
         Instalar
       </button>
     </div>
+    <ActiveStudyTimer />
     <RouterView />
   </div>
 </template>
@@ -33,6 +34,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from "vue";
 import { RouterView } from "vue-router";
+import ActiveStudyTimer from "./components/ActiveStudyTimer.vue";
 import {
   canInstall,
   initializePwa,

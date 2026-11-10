@@ -1705,12 +1705,238 @@ h1 {
   background: var(--color-primary-soft);
 }
 
+.active-study-timer {
+  position: sticky;
+  z-index: 40;
+  top: env(safe-area-inset-top, 0px);
+  display: flex;
+  width: min(1120px, calc(100% - 32px));
+  min-height: 64px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 0 auto 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 96%);
+  box-shadow: 0 5px 18px rgb(23 47 50 / 12%);
+  backdrop-filter: blur(12px);
+}
+
+.active-study-timer-topic {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-primary-dark);
+  text-decoration: none;
+}
+
+.active-study-timer-topic > .material-symbols-rounded {
+  flex: 0 0 auto;
+  font-size: 23px;
+}
+
+.active-study-timer-topic-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.active-study-timer-topic-copy strong,
+.active-study-timer-topic-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.active-study-timer-topic-copy strong {
+  color: var(--color-ink);
+  font-size: 13px;
+}
+
+.active-study-timer-topic-copy small {
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.active-study-timer-display {
+  flex: 0 0 auto;
+  color: var(--color-primary-dark);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 720;
+}
+
+.active-study-timer-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+}
+
+.active-study-timer-actions .icon-action,
+.active-study-timer-finish {
+  min-height: 40px;
+}
+
+.active-study-timer-message {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  max-width: min(420px, 100%);
+  margin: 5px 0 0;
+  padding: 8px 10px;
+  border: 1px solid #efcfcb;
+  border-radius: 8px;
+  background: #fff3f1;
+  color: var(--color-danger);
+  font-size: 12px;
+}
+
+.active-study-timer-success {
+  position: sticky;
+  z-index: 40;
+  top: env(safe-area-inset-top, 0px);
+  width: min(1120px, calc(100% - 32px));
+  margin: 0 auto 12px;
+  padding: 10px 14px;
+  border: 1px solid #b9d8ca;
+  border-radius: 10px;
+  background: #eff8f2;
+  color: #255a3d;
+  font-size: 13px;
+}
+
+.confirm-dialog-backdrop {
+  position: fixed;
+  z-index: 11000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: max(20px, env(safe-area-inset-top)) 18px
+    max(20px, env(safe-area-inset-bottom));
+  background: rgb(14 31 33 / 42%);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+}
+
+.confirm-dialog-card {
+  width: min(460px, 100%);
+  padding: 24px;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: var(--color-surface);
+  box-shadow: 0 24px 70px rgb(0 0 0 / 24%);
+}
+
+.confirm-dialog-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary-dark);
+  font-size: 22px;
+}
+
+.confirm-dialog-card:has(.danger-button) .confirm-dialog-icon {
+  background: #fff1ef;
+  color: var(--color-danger);
+}
+
+.confirm-dialog-card h2 {
+  margin: 16px 0 8px;
+  color: var(--color-ink);
+  font-size: 19px;
+}
+
+.confirm-dialog-card p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 9px;
+  margin-top: 22px;
+}
+
+.confirm-dialog-enter-active,
+.confirm-dialog-leave-active {
+  transition: opacity 150ms ease;
+}
+
+.confirm-dialog-enter-active .confirm-dialog-card,
+.confirm-dialog-leave-active .confirm-dialog-card {
+  transition: transform 150ms ease;
+}
+
+.confirm-dialog-enter-from,
+.confirm-dialog-leave-to {
+  opacity: 0;
+}
+
+.confirm-dialog-enter-from .confirm-dialog-card,
+.confirm-dialog-leave-to .confirm-dialog-card {
+  transform: translateY(8px) scale(0.98);
+}
+
 @media (max-width: 700px) {
   .app-runtime-banner {
     align-items: stretch;
     flex-direction: column;
     gap: 8px;
     padding: 10px 16px;
+  }
+
+  .active-study-timer {
+    width: calc(100% - 20px);
+    min-height: 56px;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 10px;
+  }
+
+  .active-study-timer-topic {
+    flex: 1 1 150px;
+  }
+
+  .active-study-timer-display {
+    font-size: 14px;
+  }
+
+  .active-study-timer-actions {
+    gap: 5px;
+  }
+
+  .active-study-timer-actions .timer-focus-trigger {
+    min-height: 38px;
+    padding: 7px 8px;
+    font-size: 12px;
+  }
+
+  .active-study-timer-finish {
+    min-height: 38px;
+    padding: 7px 9px;
+    font-size: 12px;
+  }
+
+  .confirm-dialog-card {
+    padding: 20px;
+  }
+
+  .confirm-dialog-actions > button {
+    min-height: 42px;
+    flex: 1 1 auto;
   }
 
   .app-install-button {
@@ -2216,7 +2442,7 @@ h1 {
 
 .planned-topic {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 40px auto;
+  grid-template-columns: minmax(0, 1fr) 40px 40px auto;
   align-items: center;
   justify-content: stretch;
 }
@@ -2267,8 +2493,13 @@ h1 {
   justify-self: center;
 }
 
-.planned-topic-actions {
+.planned-topic-qconcursos {
   grid-column: 3;
+  justify-self: center;
+}
+
+.planned-topic-actions {
+  grid-column: 4;
   align-self: center;
 }
 
@@ -3256,7 +3487,7 @@ h1 {
   }
 
   .planned-topic {
-    grid-template-columns: minmax(0, 1fr) 40px;
+    grid-template-columns: minmax(0, 1fr) 40px 40px;
     align-items: start;
   }
 
@@ -3266,6 +3497,11 @@ h1 {
 
   .planned-topic-questions {
     grid-column: 2;
+    grid-row: 1;
+  }
+
+  .planned-topic-qconcursos {
+    grid-column: 3;
     grid-row: 1;
   }
 

@@ -1,4 +1,4 @@
-import { reactive } from "vue";
+import { reactive, ref } from "vue";
 
 interface ActiveStudyTimer {
   topicId: string | null;
@@ -11,6 +11,7 @@ export const activeStudyTimer = reactive<ActiveStudyTimer>({
   elapsedSeconds: 0,
   isRunning: false,
 });
+export const focusTimerOpen = ref(false);
 
 let accumulatedMilliseconds = 0;
 let segmentStartedAt: number | null = null;
@@ -102,6 +103,7 @@ export function resetStudyTimer(): void {
   activeStudyTimer.topicId = null;
   activeStudyTimer.elapsedSeconds = 0;
   activeStudyTimer.isRunning = false;
+  focusTimerOpen.value = false;
   accumulatedMilliseconds = 0;
   segmentStartedAt = null;
 }

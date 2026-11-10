@@ -2,7 +2,9 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import AppSelect from "../components/AppSelect.vue";
+import ConfirmDialog from "../components/ConfirmDialog.vue";
 import { currentUser, logout } from "../auth";
+import { requestConfirmation } from "../confirm-dialog";
 import { getContent, type ContentSnapshot, type Topic } from "../content";
 import {
   createQuestion,
@@ -272,9 +274,13 @@ async function saveQuestion(): Promise<void> {
 }
 
 async function removeQuestion(question: StudyQuestion): Promise<void> {
-  const confirmed = window.confirm(
-    "Excluir esta questão do seu banco? Essa ação não pode ser desfeita.",
-  );
+  const confirmed = await requestConfirmation({
+    title: "Excluir questão?",
+    message:
+      "Excluir esta questão do seu banco? Essa ação não pode ser desfeita.",
+    confirmLabel: "Excluir questão",
+    danger: true,
+  });
   if (!confirmed) return;
   pageError.value = "";
   try {
@@ -903,4 +909,5 @@ onMounted(loadQuestions);
       </section>
     </main>
   </div>
+  <ConfirmDialog />
 </template>

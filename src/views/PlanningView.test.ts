@@ -1,8 +1,10 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { createMemoryHistory, createRouter, RouterView } from "vue-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { Fragment, defineComponent, h } from "vue";
 import { currentUser, logout } from "../auth";
-import { activeStudyTimer } from "../study-timer";
+import { activeStudyTimer, resetStudyTimer } from "../study-timer";
+import ActiveStudyTimer from "../components/ActiveStudyTimer.vue";
 import PlanningView from "./PlanningView.vue";
 
 HTMLElement.prototype.hasPointerCapture ??= () => false;
@@ -31,11 +33,24 @@ async function mountPlanningView() {
   });
   await router.push("/planning");
   await router.isReady();
-  const wrapper = mount(RouterView, {
+  const TestApp = defineComponent({
+    setup() {
+      return () => h(Fragment, [h(ActiveStudyTimer), h(RouterView)]);
+    },
+  });
+  const wrapper = mount(TestApp, {
     global: { plugins: [router] },
   });
   await flushPromises();
   return wrapper;
+}
+
+async function confirmDialog(
+  wrapper: Awaited<ReturnType<typeof mountPlanningView>>,
+): Promise<void> {
+  expect(wrapper.find('[role="dialog"]').exists()).toBe(true);
+  await wrapper.get(".confirm-dialog-confirm").trigger("click");
+  await flushPromises();
 }
 
 async function chooseSelectOption(
@@ -55,6 +70,7 @@ async function chooseSelectOption(
 
 describe("PlanningView timer", () => {
   afterEach(() => {
+    resetStudyTimer();
     logout();
     vi.useRealTimers();
     vi.unstubAllGlobals();
@@ -63,12 +79,9 @@ describe("PlanningView timer", () => {
   it("starts, pauses, resumes, and saves the measured study session", async () => {
     currentUser.value = { id: "user-1", email: "student@example.com" };
     vi.useFakeTimers();
-    vi.stubGlobal(
-      "confirm",
-      vi.fn(() => true),
-    );
     const today = new Date().toISOString().slice(0, 10);
     const weekday = (new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7;
+    vi.setSystemTime(new Date(`${today}T12:00:00`));
     let visibleSessions: {
       id: string;
       topicId: string;
@@ -245,6 +258,14 @@ describe("PlanningView timer", () => {
         .get('a[aria-label="Ver questões de Modelagem relacional"]')
         .attributes("href"),
     ).toBe("/questions?topicId=topic-1");
+    const qconcursosLink = wrapper.get(
+      'a[aria-label="Buscar Modelagem relacional no QConcursos"]',
+    );
+    expect(qconcursosLink.attributes("href")).toBe(
+      "https://www.qconcursos.com/nova-busca?q=Modelagem+relacional",
+    );
+    expect(qconcursosLink.attributes("target")).toBe("_blank");
+    expect(qconcursosLink.attributes("rel")).toBe("noopener noreferrer");
     await wrapper.get("#target-date-trigger").trigger("click");
     expect(wrapper.find("#target-date-calendar").exists()).toBe(true);
     expect(wrapper.find('input[type="date"]').exists()).toBe(false);
@@ -263,6 +284,7 @@ describe("PlanningView timer", () => {
     expect(wrapper.get(".timer-start").classes()).not.toContain("text-button");
     await wrapper.get(".timer-start").trigger("click");
     expect(wrapper.text()).not.toContain("Registrar manualmente");
+    expect(wrapper.find(".active-study-timer").exists()).toBe(true);
     await vi.advanceTimersByTimeAsync(65_000);
     await flushPromises();
 
@@ -274,6 +296,7 @@ describe("PlanningView timer", () => {
     );
     expect(timerActions.findAll(".timer-control-button")).toHaveLength(2);
     await wrapper.get(".timer-focus-trigger").trigger("click");
+    expect(wrapper.find(".active-study-timer").exists()).toBe(false);
     expect(wrapper.get('[role="dialog"]').text()).toContain(
       "Modelagem relacional",
     );
@@ -281,6 +304,13 @@ describe("PlanningView timer", () => {
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     await flushPromises();
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
+    expect(wrapper.find(".active-study-timer").exists()).toBe(true);
+
+    await wrapper.get('a[href="/questions"]').trigger("click");
+    await flushPromises();
+    expect(wrapper.find(".active-study-timer").exists()).toBe(true);
+    await wrapper.get(".active-study-timer-topic").trigger("click");
+    await flushPromises();
 
     await wrapper.get(".timer-focus-trigger").trigger("click");
     await wrapper
@@ -306,7 +336,7 @@ describe("PlanningView timer", () => {
       durationSeconds: 75,
     });
     expect(activeStudyTimer.topicId).toBeNull();
-    expect(wrapper.text()).toContain("Sessão de 1 min 15 s registrada.");
+    expect(wrapper.text()).toContain("Sessão de 00:01:15 registrada.");
     expect(
       wrapper
         .get('button[aria-label="Sem questões para Modelagem relacional"]')
@@ -316,18 +346,18 @@ describe("PlanningView timer", () => {
     expect(wrapper.text()).toContain("Sessões desta semana");
     await wrapper.get(".session-delete-button").trigger("click");
     await flushPromises();
-    expect(vi.mocked(window.confirm)).toHaveBeenCalledOnce();
+    await confirmDialog(wrapper);
     expect(wrapper.findAll(".session-history > li")).toHaveLength(2);
     await wrapper.get('.session-history input[type="checkbox"]').setValue(true);
     await wrapper.get(".session-bulk-actions .danger-button").trigger("click");
     await flushPromises();
-    expect(vi.mocked(window.confirm)).toHaveBeenCalledTimes(2);
+    await confirmDialog(wrapper);
     expect(wrapper.findAll(".session-history > li")).toHaveLength(1);
     await wrapper
       .get(".session-bulk-actions .danger-button:last-child")
       .trigger("click");
     await flushPromises();
-    expect(vi.mocked(window.confirm)).toHaveBeenCalledTimes(3);
+    await confirmDialog(wrapper);
     expect(wrapper.text()).toContain(
       "Todas as sessões desta semana foram apagadas deste planejamento.",
     );
@@ -535,7 +565,7 @@ describe("PlanningView timer", () => {
       .get(".planning-profile-actions .danger-button")
       .trigger("click");
     await flushPromises();
-    expect(vi.mocked(window.confirm)).toHaveBeenCalledOnce();
+    await confirmDialog(wrapper);
     expect(plans.map((plan) => plan.id)).toEqual(["default"]);
     expect(wrapper.text()).toContain(
       'Planejamento "Concurso UFC 2027" apagado.',

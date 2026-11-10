@@ -10,6 +10,8 @@ import {
 import { RouterLink, useRouter } from "vue-router";
 import { currentUser, logout } from "../auth";
 import AppSelect from "../components/AppSelect.vue";
+import ConfirmDialog from "../components/ConfirmDialog.vue";
+import { requestConfirmation } from "../confirm-dialog";
 import { getContent, type ContentSnapshot, type Topic } from "../content";
 import {
   activateStudyPlan,
@@ -30,6 +32,7 @@ import {
 import { getQuestions, type StudyQuestion } from "../questions";
 import {
   activeStudyTimer,
+  focusTimerOpen,
   getTimedStudySession,
   pauseStudyTimer,
   resetStudyTimer,
@@ -85,7 +88,6 @@ const selectedTopicIdsDraft = ref<string[]>([]);
 const selectedSessionIds = ref<string[]>([]);
 const planFormOpen = ref(false);
 const topicEditorOpen = ref(false);
-const focusTimerOpen = ref(false);
 const planNameDraft = ref("");
 const timedTopicId = computed(() => activeStudyTimer.topicId);
 const preferencesDraft = reactive<StudyPreferences>({
@@ -187,14 +189,6 @@ const activeTimerTopicVisible = computed(() => {
     )
   );
 });
-const focusTimerTopic = computed(() =>
-  timedTopicId.value ? getTopic(timedTopicId.value) : undefined,
-);
-const focusTimerSubject = computed(() =>
-  focusTimerTopic.value
-    ? subjectName(focusTimerTopic.value)
-    : "Sessão de estudo",
-);
 const hasUnsavedPreferences = computed(
   () =>
     JSON.stringify({
@@ -322,6 +316,12 @@ function getTopic(topicId: string): Topic | undefined {
 
 function hasActiveQuestions(topicId: string): boolean {
   return activeQuestionTopicIds.value.has(topicId);
+}
+
+function qconcursosTopicUrl(topicName: string): string {
+  const url = new URL("https://www.qconcursos.com/nova-busca");
+  url.searchParams.set("q", topicName);
+  return url.toString();
 }
 
 function draftFor(topic: Topic) {
@@ -512,9 +512,12 @@ async function changeActivePlan(): Promise<void> {
 async function removeActivePlan(): Promise<void> {
   const plan = planning.value.activePlan;
   if (plan.id === "default" || planning.value.plans.length <= 1) return;
-  const confirmed = window.confirm(
-    `Apagar o planejamento "${plan.name}"? A disponibilidade e os ajustes semanais deste plano serão removidos. O progresso e o histórico de sessões continuarão salvos.`,
-  );
+  const confirmed = await requestConfirmation({
+    title: "Apagar planejamento?",
+    message: `Apagar o planejamento "${plan.name}"? A disponibilidade e os ajustes semanais deste plano serão removidos. O progresso e o histórico de sessões continuarão salvos.`,
+    confirmLabel: "Apagar planejamento",
+    danger: true,
+  });
   if (!confirmed) return;
   await runAction(
     () => deleteStudyPlan(plan.id),
@@ -523,9 +526,12 @@ async function removeActivePlan(): Promise<void> {
 }
 
 async function removeStudySession(session: StudySession): Promise<void> {
-  const confirmed = window.confirm(
-    `Apagar a sessão de ${sessionTopicName(session)} registrada em ${formatDate(session.date)}?`,
-  );
+  const confirmed = await requestConfirmation({
+    title: "Apagar sessão?",
+    message: `Apagar a sessão de ${sessionTopicName(session)} registrada em ${formatDate(session.date)}?`,
+    confirmLabel: "Apagar sessão",
+    danger: true,
+  });
   if (!confirmed) return;
   await runAction(
     () => deleteStudySession(session.id),
@@ -538,9 +544,12 @@ async function removeSelectedSessions(): Promise<void> {
     planning.value.sessions.some((session) => session.id === id),
   );
   if (sessionIds.length === 0) return;
-  const confirmed = window.confirm(
-    `Apagar ${sessionIds.length} sessão(ões) selecionada(s) desta semana deste planejamento?`,
-  );
+  const confirmed = await requestConfirmation({
+    title: "Apagar sessões selecionadas?",
+    message: `Apagar ${sessionIds.length} sessão(ões) selecionada(s) desta semana deste planejamento?`,
+    confirmLabel: "Apagar selecionadas",
+    danger: true,
+  });
   if (!confirmed) return;
   await runAction(
     () => deleteStudySessions({ sessionIds }),
@@ -552,9 +561,12 @@ async function removeSelectedSessions(): Promise<void> {
 async function removeAllWeeklySessions(): Promise<void> {
   const count = planning.value.sessions.length;
   if (count === 0) return;
-  const confirmed = window.confirm(
-    `Apagar todas as ${count} sessões desta semana do planejamento "${planning.value.activePlan.name}"? Esta ação não pode ser desfeita.`,
-  );
+  const confirmed = await requestConfirmation({
+    title: "Apagar todas as sessões da semana?",
+    message: `Apagar todas as ${count} sessões desta semana do planejamento "${planning.value.activePlan.name}"? Esta ação não pode ser desfeita.`,
+    confirmLabel: "Apagar todas",
+    danger: true,
+  });
   if (!confirmed) return;
   await runAction(
     () => deleteStudySessions({ all: true }),
@@ -672,9 +684,8 @@ function beginTimedSession(topicId: string) {
 }
 
 function handleFocusTimerKeydown(event: KeyboardEvent): void {
-  if (event.key === "Escape" && focusTimerOpen.value) {
+  if (event.key === "Escape" && focusTimerOpen.value)
     focusTimerOpen.value = false;
-  }
 }
 
 async function finishTimedSession() {
@@ -732,12 +743,21 @@ watch(timedTopicId, (topicId) => {
 
 onMounted(() => {
   window.addEventListener("keydown", handleFocusTimerKeydown);
+  window.addEventListener("study-session-updated", handleStudySessionUpdated);
   void loadPlanning();
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", handleFocusTimerKeydown);
+  window.removeEventListener(
+    "study-session-updated",
+    handleStudySessionUpdated,
+  );
 });
+
+function handleStudySessionUpdated(): void {
+  void loadPlanning();
+}
 </script>
 
 <template>
@@ -1419,6 +1439,18 @@ onBeforeUnmount(() => {
                       quiz
                     </span>
                   </button>
+                  <a
+                    class="icon-action planned-topic-qconcursos"
+                    :href="qconcursosTopicUrl(planned.topicName)"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    :aria-label="`Buscar ${planned.topicName} no QConcursos`"
+                    :title="`Buscar ${planned.topicName} no QConcursos`"
+                  >
+                    <span class="material-symbols-rounded" aria-hidden="true">
+                      open_in_new
+                    </span>
+                  </a>
                   <div class="planned-topic-actions">
                     <label>
                       <span class="visually-hidden">
@@ -1802,86 +1834,5 @@ onBeforeUnmount(() => {
     </main>
   </div>
 
-  <Transition name="timer-focus">
-    <section
-      v-if="focusTimerOpen && timedTopicId"
-      class="timer-focus-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="timer-focus-heading"
-    >
-      <div class="timer-focus-card">
-        <button
-          class="icon-action timer-focus-close"
-          type="button"
-          aria-label="Fechar tela cheia"
-          title="Fechar tela cheia"
-          autofocus
-          @click="focusTimerOpen = false"
-        >
-          <span class="material-symbols-rounded" aria-hidden="true">
-            close
-          </span>
-        </button>
-        <div class="timer-focus-orbit" aria-hidden="true">
-          <div class="timer-focus-orbit-track"></div>
-          <div class="timer-focus-orbit-inner">
-            <span class="material-symbols-rounded">timer</span>
-          </div>
-        </div>
-        <p class="eyebrow">{{ focusTimerSubject }}</p>
-        <h2 id="timer-focus-heading">
-          {{ focusTimerTopic?.name ?? "Tópico de estudo" }}
-        </h2>
-        <output
-          class="timer-focus-display"
-          aria-live="off"
-          :aria-label="`Tempo de estudo: ${formatElapsedTime(activeStudyTimer.elapsedSeconds)}`"
-        >
-          {{ formatElapsedTime(activeStudyTimer.elapsedSeconds) }}
-        </output>
-        <p class="timer-focus-status">
-          {{ activeStudyTimer.isRunning ? "Sessão em andamento" : "Pausado" }}
-        </p>
-        <div class="timer-focus-controls">
-          <button
-            class="timer-focus-icon-button"
-            type="button"
-            :aria-label="
-              activeStudyTimer.isRunning
-                ? 'Pausar cronômetro'
-                : 'Continuar cronômetro'
-            "
-            :title="
-              activeStudyTimer.isRunning
-                ? 'Pausar cronômetro'
-                : 'Continuar cronômetro'
-            "
-            @click="
-              activeStudyTimer.isRunning
-                ? pauseStudyTimer()
-                : resumeStudyTimer()
-            "
-          >
-            <span class="material-symbols-rounded" aria-hidden="true">
-              {{ activeStudyTimer.isRunning ? "pause" : "play_arrow" }}
-            </span>
-          </button>
-          <button
-            class="timer-focus-icon-button timer-focus-finish"
-            type="button"
-            aria-label="Finalizar sessão"
-            title="Finalizar sessão"
-            :disabled="saving"
-            @click="finishTimedSession"
-          >
-            <span class="material-symbols-rounded" aria-hidden="true">
-              {{ saving ? "hourglass_top" : "stop" }}
-            </span>
-          </button>
-        </div>
-        <p class="timer-focus-hint">Pressione Esc para sair</p>
-      </div>
-    </section>
-  </Transition>
+  <ConfirmDialog />
 </template>
