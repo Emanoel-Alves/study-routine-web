@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { RouterLink, useRouter } from "vue-router";
+import AppSelect from "../components/AppSelect.vue";
 import { currentUser, logout } from "../auth";
 import {
   createMaterial,
@@ -80,6 +81,21 @@ const materialTypes: { value: MaterialType; label: string }[] = [
   { value: "document", label: "Documento" },
   { value: "other", label: "Outro" },
 ];
+const statusFilterOptions = computed(() => [
+  { value: "all", label: "Todos os estados" },
+  ...statusOptions,
+]);
+const materialFilterOptions = computed(() => [
+  { value: "all", label: "Todos os tipos" },
+  ...materialTypes,
+]);
+const materialTopicOptions = computed(() => [
+  { value: "", label: "Disciplina inteira" },
+  ...subjectTopics.value.map((topic) => ({
+    value: topic.id,
+    label: topic.name,
+  })),
+]);
 
 const selectedSubject = computed(
   () =>
@@ -476,8 +492,7 @@ async function importMatrix() {
   }
 }
 
-async function changeTopicStatus(topic: Topic, event: Event) {
-  const value = (event.target as HTMLSelectElement).value;
+async function changeTopicStatus(topic: Topic, value: string) {
   const status = statusOptions.find((option) => option.value === value)?.value;
   if (!status) return;
   await performMutation(
@@ -662,29 +677,19 @@ function openTopicResult(topic: Topic) {
         </label>
         <label class="filter-field">
           <span>Estado do tópico</span>
-          <select v-model="statusFilter">
-            <option value="all">Todos os estados</option>
-            <option
-              v-for="status in statusOptions"
-              :key="status.value"
-              :value="status.value"
-            >
-              {{ status.label }}
-            </option>
-          </select>
+          <AppSelect
+            v-model="statusFilter"
+            :options="statusFilterOptions"
+            aria-label="Estado do tópico"
+          />
         </label>
         <label class="filter-field">
           <span>Tipo de material</span>
-          <select v-model="materialTypeFilter">
-            <option value="all">Todos os tipos</option>
-            <option
-              v-for="type in materialTypes"
-              :key="type.value"
-              :value="type.value"
-            >
-              {{ type.label }}
-            </option>
-          </select>
+          <AppSelect
+            v-model="materialTypeFilter"
+            :options="materialFilterOptions"
+            aria-label="Tipo de material"
+          />
         </label>
         <label class="archived-filter">
           <input v-model="showArchived" type="checkbox" />
@@ -936,15 +941,11 @@ function openTopicResult(topic: Topic) {
               </label>
               <label>
                 Estado
-                <select v-model="topicDraft.status">
-                  <option
-                    v-for="status in statusOptions"
-                    :key="status.value"
-                    :value="status.value"
-                  >
-                    {{ status.label }}
-                  </option>
-                </select>
+                <AppSelect
+                  v-model="topicDraft.status"
+                  :options="statusOptions"
+                  aria-label="Estado do tópico"
+                />
               </label>
               <label>
                 Estimativa (minutos)
@@ -989,19 +990,14 @@ function openTopicResult(topic: Topic) {
                   <span class="visually-hidden">
                     Estado de {{ topic.name }}
                   </span>
-                  <select
-                    :value="topic.status"
+                  <AppSelect
+                    :model-value="topic.status"
                     :disabled="saving || selectedSubject.archived"
+                    :options="statusOptions"
+                    :aria-label="`Estado de ${topic.name}`"
+                    class="topic-status-select"
                     @change="changeTopicStatus(topic, $event)"
-                  >
-                    <option
-                      v-for="status in statusOptions"
-                      :key="status.value"
-                      :value="status.value"
-                    >
-                      {{ status.label }}
-                    </option>
-                  </select>
+                  />
                 </label>
                 <div class="topic-actions">
                   <button
@@ -1257,28 +1253,19 @@ function openTopicResult(topic: Topic) {
               </label>
               <label>
                 Tipo
-                <select v-model="materialDraft.type">
-                  <option
-                    v-for="type in materialTypes"
-                    :key="type.value"
-                    :value="type.value"
-                  >
-                    {{ type.label }}
-                  </option>
-                </select>
+                <AppSelect
+                  v-model="materialDraft.type"
+                  :options="materialTypes"
+                  aria-label="Tipo de material"
+                />
               </label>
               <label>
                 Associar a
-                <select v-model="materialDraft.topicId">
-                  <option value="">Disciplina inteira</option>
-                  <option
-                    v-for="topic in subjectTopics"
-                    :key="topic.id"
-                    :value="topic.id"
-                  >
-                    {{ topic.name }}
-                  </option>
-                </select>
+                <AppSelect
+                  v-model="materialDraft.topicId"
+                  :options="materialTopicOptions"
+                  aria-label="Associar a"
+                />
               </label>
               <label>
                 URL <span class="optional-label">(opcional)</span>

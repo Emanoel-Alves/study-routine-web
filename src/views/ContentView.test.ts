@@ -4,6 +4,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { currentUser, logout } from "../auth";
 import ContentView from "./ContentView.vue";
 
+HTMLElement.prototype.hasPointerCapture ??= () => false;
+HTMLElement.prototype.releasePointerCapture ??= () => {};
+
 const emptyContent = { subjects: [], topics: [], materials: [] };
 
 function response(data: unknown, status = 200): Response {
@@ -324,16 +327,40 @@ describe("ContentView", () => {
     expect(wrapper.text()).toContain("0 de 1 tópicos concluídos");
     expect(wrapper.text()).toContain("Tópicos encontrados");
 
-    const selects = wrapper.findAll("select");
-    await selects[0]?.setValue("studied");
+    const filterTriggers = wrapper.findAll(
+      ".content-filters .app-select-trigger",
+    );
+    expect(filterTriggers).toHaveLength(2);
+    await filterTriggers[0].trigger("pointerdown");
+    await flushPromises();
+    const studiedOption = Array.from(
+      document.querySelectorAll<HTMLElement>(".app-select-item"),
+    ).find((option) => option.textContent?.trim() === "Estudado");
+    expect(studiedOption).toBeDefined();
+    studiedOption!.dispatchEvent(new Event("pointerup", { bubbles: true }));
+    await flushPromises();
     expect(wrapper.text()).toContain(
       "Nenhum tópico encontrado. Experimente outro termo ou ajuste os filtros.",
     );
 
     await wrapper.get('input[type="search"]').setValue("");
-    await selects[0]?.setValue("all");
+    await filterTriggers[0].trigger("pointerdown");
+    await flushPromises();
+    const allStatusesOption = Array.from(
+      document.querySelectorAll<HTMLElement>(".app-select-item"),
+    ).find((option) => option.textContent?.trim() === "Todos os estados");
+    expect(allStatusesOption).toBeDefined();
+    allStatusesOption!.dispatchEvent(new Event("pointerup", { bubbles: true }));
+    await flushPromises();
     expect(wrapper.text()).toContain("Videoaula");
-    await selects[1]?.setValue("book");
+    await filterTriggers[1].trigger("pointerdown");
+    await flushPromises();
+    const bookOption = Array.from(
+      document.querySelectorAll<HTMLElement>(".app-select-item"),
+    ).find((option) => option.textContent?.trim() === "Livro");
+    expect(bookOption).toBeDefined();
+    bookOption!.dispatchEvent(new Event("pointerup", { bubbles: true }));
+    await flushPromises();
     expect(wrapper.find(".material-panel").text()).not.toContain("Videoaula");
   });
 });

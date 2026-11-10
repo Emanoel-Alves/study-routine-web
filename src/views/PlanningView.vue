@@ -1,16 +1,26 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
+  watch,
+} from "vue";
 import { RouterLink, useRouter } from "vue-router";
 import { currentUser, logout } from "../auth";
+import AppSelect from "../components/AppSelect.vue";
 import { getContent, type ContentSnapshot, type Topic } from "../content";
 import {
   activateStudyPlan,
   createStudyPlan,
+  deleteStudyPlan,
   getPlanning,
   movePlannedTopic,
   registerSession,
   resetPlannedTopic,
   savePreferences,
+  saveSelectedTopics,
   type PlanningSnapshot,
   type StudyPreferences,
   type StudySession,
@@ -49,7 +59,7 @@ const emptyPlanning: PlanningSnapshot = {
     deadline: null,
   },
   plans: [],
-  activePlan: { id: "", name: "" },
+  activePlan: { id: "", name: "", selectedTopicIds: null },
   sessions: [],
 };
 const content = ref<ContentSnapshot>(emptyContent);
@@ -59,7 +69,10 @@ const saving = ref(false);
 const errorMessage = ref("");
 const successMessage = ref("");
 const selectedPlanId = ref("");
+const selectedTopicIdsDraft = ref<string[]>([]);
 const planFormOpen = ref(false);
+const topicEditorOpen = ref(false);
+const focusTimerOpen = ref(false);
 const planNameDraft = ref("");
 const timedTopicId = computed(() => activeStudyTimer.topicId);
 const preferencesDraft = reactive<StudyPreferences>({
@@ -94,6 +107,42 @@ const activeTopics = computed(() => {
     activeSubjectIds.has(topic.subjectId),
   );
 });
+const selectionSubjects = computed(() =>
+  content.value.subjects
+    .filter((subject) => !subject.archived)
+    .map((subject) => ({
+      ...subject,
+      topics: activeTopics.value
+        .filter((topic) => topic.subjectId === subject.id)
+        .sort((first, second) => first.position - second.position),
+    }))
+    .filter((subject) => subject.topics.length > 0),
+);
+const activePlanTopics = computed(() => {
+  const selectedTopicIds = planning.value.activePlan.selectedTopicIds;
+  if (selectedTopicIds === null) return activeTopics.value;
+  const selectedIds = new Set(selectedTopicIds);
+  return activeTopics.value.filter((topic) => selectedIds.has(topic.id));
+});
+const selectedTopicCount = computed(() => selectedTopicIdsDraft.value.length);
+const totalSelectableTopics = computed(() =>
+  selectionSubjects.value.reduce(
+    (total, subject) => total + subject.topics.length,
+    0,
+  ),
+);
+const hasUnsavedTopicSelection = computed(() => {
+  const saved = planning.value.activePlan.selectedTopicIds ?? null;
+  const activeTopicIds = new Set(activeTopics.value.map((topic) => topic.id));
+  const savedIds =
+    saved === null
+      ? [...activeTopicIds]
+      : saved.filter((topicId) => activeTopicIds.has(topicId));
+  return (
+    JSON.stringify([...selectedTopicIdsDraft.value].sort()) !==
+    JSON.stringify(savedIds.sort())
+  );
+});
 const completedTopics = computed(
   () => activeTopics.value.filter((topic) => topic.status === "studied").length,
 );
@@ -125,6 +174,14 @@ const activeTimerTopicVisible = computed(() => {
     )
   );
 });
+const focusTimerTopic = computed(() =>
+  timedTopicId.value ? getTopic(timedTopicId.value) : undefined,
+);
+const focusTimerSubject = computed(() =>
+  focusTimerTopic.value
+    ? subjectName(focusTimerTopic.value)
+    : "Sessão de estudo",
+);
 const hasUnsavedPreferences = computed(
   () =>
     JSON.stringify({
@@ -179,7 +236,7 @@ const summaryBySubject = computed(() => {
   return content.value.subjects
     .filter((subject) => !subject.archived)
     .map((subject) => {
-      const topics = activeTopics.value.filter(
+      const topics = activePlanTopics.value.filter(
         (topic) => topic.subjectId === subject.id,
       );
       const completed = topics.filter(
@@ -310,6 +367,50 @@ function statusLabel(status: Topic["status"]): string {
   return labels[status];
 }
 
+function toggleSubjectTopics(subjectId: string, event: Event): void {
+  const subject = selectionSubjects.value.find((item) => item.id === subjectId);
+  if (!subject) return;
+  const checked = (event.target as HTMLInputElement).checked;
+  const topicIds = new Set(selectedTopicIdsDraft.value);
+  for (const topic of subject.topics) {
+    if (checked) topicIds.add(topic.id);
+    else topicIds.delete(topic.id);
+  }
+  selectedTopicIdsDraft.value = [...topicIds];
+}
+
+function resetTopicSelectionDraft(): void {
+  const activeTopicIds = new Set(activeTopics.value.map((topic) => topic.id));
+  const saved = planning.value.activePlan.selectedTopicIds ?? null;
+  selectedTopicIdsDraft.value =
+    saved === null
+      ? [...activeTopicIds]
+      : saved.filter((topicId) => activeTopicIds.has(topicId));
+}
+
+function openCreatePlan(): void {
+  planNameDraft.value = "";
+  selectedTopicIdsDraft.value = [];
+  topicEditorOpen.value = false;
+  planFormOpen.value = true;
+}
+
+function cancelCreatePlan(): void {
+  planFormOpen.value = false;
+  planNameDraft.value = "";
+  resetTopicSelectionDraft();
+}
+
+function editTopicSelection(): void {
+  resetTopicSelectionDraft();
+  topicEditorOpen.value = true;
+}
+
+function cancelTopicSelectionEdit(): void {
+  resetTopicSelectionDraft();
+  topicEditorOpen.value = false;
+}
+
 async function loadPlanning(): Promise<boolean> {
   loading.value = true;
   errorMessage.value = "";
@@ -321,6 +422,7 @@ async function loadPlanning(): Promise<boolean> {
     planning.value = planningResult;
     content.value = contentResult;
     selectedPlanId.value = planningResult.activePlan.id;
+    resetTopicSelectionDraft();
     preferencesDraft.studyDays = [...planningResult.preferences.studyDays];
     preferencesDraft.minutesPerDay = planningResult.preferences.minutesPerDay;
     preferencesDraft.targetDate = planningResult.preferences.targetDate;
@@ -346,9 +448,10 @@ async function createPlan(): Promise<void> {
   errorMessage.value = "";
   successMessage.value = "";
   try {
-    await createStudyPlan(name);
+    await createStudyPlan(name, [...selectedTopicIdsDraft.value].sort());
     planNameDraft.value = "";
     planFormOpen.value = false;
+    topicEditorOpen.value = false;
     if (!(await loadPlanning())) return;
     successMessage.value = `Planejamento "${name}" criado e selecionado.`;
   } catch (error) {
@@ -385,6 +488,19 @@ async function changeActivePlan(): Promise<void> {
   } finally {
     saving.value = false;
   }
+}
+
+async function removeActivePlan(): Promise<void> {
+  const plan = planning.value.activePlan;
+  if (plan.id === "default" || planning.value.plans.length <= 1) return;
+  const confirmed = window.confirm(
+    `Apagar o planejamento "${plan.name}"? A disponibilidade e os ajustes semanais deste plano serão removidos. O progresso e o histórico de sessões continuarão salvos.`,
+  );
+  if (!confirmed) return;
+  await runAction(
+    () => deleteStudyPlan(plan.id),
+    `Planejamento "${plan.name}" apagado.`,
+  );
 }
 
 async function runAction(action: () => Promise<unknown>, success: string) {
@@ -429,8 +545,15 @@ async function saveStudyPreferences() {
   );
 }
 
-async function moveTopic(topicId: string, event: Event) {
-  const plannedDate = (event.target as HTMLSelectElement).value;
+async function saveTopicSelection() {
+  await runAction(
+    () => saveSelectedTopics([...selectedTopicIdsDraft.value].sort()),
+    "Conteúdo do planejamento salvo e semana recalculada.",
+  );
+  if (!errorMessage.value) topicEditorOpen.value = false;
+}
+
+async function moveTopic(topicId: string, plannedDate: string) {
   if (!plannedDate) return;
   await runAction(
     () => movePlannedTopic(topicId, plannedDate),
@@ -488,6 +611,12 @@ function beginTimedSession(topicId: string) {
   }
 }
 
+function handleFocusTimerKeydown(event: KeyboardEvent): void {
+  if (event.key === "Escape" && focusTimerOpen.value) {
+    focusTimerOpen.value = false;
+  }
+}
+
 async function finishTimedSession() {
   if (saving.value) return;
 
@@ -537,7 +666,18 @@ function sessionTopicName(session: StudySession): string {
   return getTopic(session.topicId)?.name ?? "Tópico removido";
 }
 
-onMounted(loadPlanning);
+watch(timedTopicId, (topicId) => {
+  if (topicId === null) focusTimerOpen.value = false;
+});
+
+onMounted(() => {
+  window.addEventListener("keydown", handleFocusTimerKeydown);
+  void loadPlanning();
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("keydown", handleFocusTimerKeydown);
+});
 </script>
 
 <template>
@@ -604,33 +744,68 @@ onMounted(loadPlanning);
                 compartilhados.
               </p>
             </div>
-            <button
-              class="secondary-button"
-              type="button"
-              :disabled="saving"
-              @click="planFormOpen = !planFormOpen"
-            >
-              <span class="material-symbols-rounded" aria-hidden="true">
-                add
-              </span>
-              Novo planejamento
-            </button>
+            <div class="planning-profile-actions">
+              <button
+                v-if="!planFormOpen && !topicEditorOpen"
+                class="secondary-button"
+                type="button"
+                :disabled="saving"
+                @click="editTopicSelection"
+              >
+                <span class="material-symbols-rounded" aria-hidden="true">
+                  edit
+                </span>
+                Editar matérias e tópicos
+              </button>
+              <button
+                v-if="
+                  !planFormOpen &&
+                  !topicEditorOpen &&
+                  planning.activePlan.id !== 'default' &&
+                  planning.plans.length > 1
+                "
+                class="danger-button"
+                type="button"
+                :disabled="saving"
+                @click="removeActivePlan"
+              >
+                <span class="material-symbols-rounded" aria-hidden="true">
+                  delete
+                </span>
+                Apagar planejamento
+              </button>
+              <button
+                class="secondary-button"
+                type="button"
+                :disabled="saving"
+                @click="planFormOpen ? cancelCreatePlan() : openCreatePlan()"
+              >
+                <span class="material-symbols-rounded" aria-hidden="true">
+                  {{ planFormOpen ? "close" : "add" }}
+                </span>
+                {{ planFormOpen ? "Cancelar criação" : "Novo planejamento" }}
+              </button>
+            </div>
           </div>
           <label class="filter-field planning-profile-select">
             <span>Escolha qual planejamento seguir</span>
-            <select
+            <AppSelect
               v-model="selectedPlanId"
-              :disabled="saving || planning.plans.length < 2"
+              :disabled="
+                saving ||
+                planFormOpen ||
+                topicEditorOpen ||
+                planning.plans.length < 2
+              "
+              :options="
+                planning.plans.map((planOption) => ({
+                  value: planOption.id,
+                  label: `${planOption.name}${planOption.active ? ' · em uso' : ''}`,
+                }))
+              "
+              aria-label="Escolha qual planejamento seguir"
               @change="changeActivePlan"
-            >
-              <option
-                v-for="planOption in planning.plans"
-                :key="planOption.id"
-                :value="planOption.id"
-              >
-                {{ planOption.name }}{{ planOption.active ? " · em uso" : "" }}
-              </option>
-            </select>
+            />
           </label>
           <form
             v-if="planFormOpen"
@@ -652,23 +827,132 @@ onMounted(loadPlanning);
               <button
                 class="primary-button"
                 type="submit"
-                :disabled="saving || !planNameDraft.trim()"
+                :disabled="
+                  saving ||
+                  !planNameDraft.trim() ||
+                  (totalSelectableTopics > 0 && selectedTopicCount === 0)
+                "
               >
                 {{ saving ? "Criando..." : "Criar e seguir" }}
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <section
+          v-if="planFormOpen || topicEditorOpen"
+          class="panel planning-topics-panel"
+        >
+          <div class="panel-section-heading">
+            <div>
+              <h2>Matérias e tópicos deste planejamento</h2>
+              <p class="panel-subtitle">
+                Escolha o conteúdo que será distribuído na semana. Cada
+                planejamento mantém sua própria seleção; progresso e sessões
+                continuam compartilhados.
+              </p>
+            </div>
+            <button
+              v-if="totalSelectableTopics > 0"
+              class="secondary-button"
+              type="button"
+              :disabled="saving"
+              @click="
+                selectedTopicIdsDraft =
+                  selectedTopicCount === totalSelectableTopics
+                    ? []
+                    : activeTopics.map((topic) => topic.id)
+              "
+            >
+              {{
+                selectedTopicCount === totalSelectableTopics
+                  ? "Desmarcar todos"
+                  : "Selecionar todos"
+              }}
+            </button>
+          </div>
+
+          <p
+            v-if="selectionSubjects.length === 0"
+            class="planning-topics-empty"
+          >
+            Nenhum tópico disponível. Adicione matérias e tópicos em
+            <RouterLink to="/content">Conteúdos</RouterLink>.
+          </p>
+          <div v-else class="planning-topic-groups">
+            <fieldset
+              v-for="subject in selectionSubjects"
+              :key="subject.id"
+              class="planning-topic-group"
+            >
+              <legend>
+                <label>
+                  <input
+                    type="checkbox"
+                    :checked="
+                      subject.topics.every((topic) =>
+                        selectedTopicIdsDraft.includes(topic.id),
+                      )
+                    "
+                    :disabled="saving"
+                    @change="toggleSubjectTopics(subject.id, $event)"
+                  />
+                  <span>{{ subject.name }}</span>
+                  <small>
+                    {{
+                      subject.topics.filter((topic) =>
+                        selectedTopicIdsDraft.includes(topic.id),
+                      ).length
+                    }}/{{ subject.topics.length }}
+                  </small>
+                </label>
+              </legend>
+              <label
+                v-for="topic in subject.topics"
+                :key="topic.id"
+                class="planning-topic-choice"
+              >
+                <input
+                  v-model="selectedTopicIdsDraft"
+                  type="checkbox"
+                  :value="topic.id"
+                  :disabled="saving"
+                />
+                <span>{{ topic.name }}</span>
+              </label>
+            </fieldset>
+          </div>
+
+          <div class="planning-topic-footer">
+            <p
+              v-if="selectedTopicCount === 0 && totalSelectableTopics > 0"
+              class="planning-topic-selection-warning"
+            >
+              Selecione ao menos um tópico para gerar o plano semanal.
+            </p>
+            <p v-else>
+              {{ selectedTopicCount }} de {{ totalSelectableTopics }} tópicos
+              selecionados{{ planFormOpen ? " para este planejamento." : "." }}
+            </p>
+            <div v-if="topicEditorOpen" class="form-actions">
+              <button
+                class="primary-button"
+                type="button"
+                :disabled="saving || !hasUnsavedTopicSelection"
+                @click="saveTopicSelection"
+              >
+                {{ saving ? "Salvando..." : "Salvar conteúdo" }}
               </button>
               <button
                 class="secondary-button"
                 type="button"
                 :disabled="saving"
-                @click="
-                  planFormOpen = false;
-                  planNameDraft = '';
-                "
+                @click="cancelTopicSelectionEdit"
               >
                 Cancelar
               </button>
             </div>
-          </form>
+          </div>
         </section>
 
         <section class="planning-summary" aria-label="Resumo do progresso">
@@ -933,6 +1217,17 @@ onMounted(loadPlanning);
           </span>
           <div class="timer-controls">
             <button
+              class="icon-action timer-focus-trigger"
+              type="button"
+              aria-label="Abrir cronômetro em tela cheia"
+              title="Abrir cronômetro em tela cheia"
+              @click="focusTimerOpen = true"
+            >
+              <span class="material-symbols-rounded" aria-hidden="true">
+                open_in_full
+              </span>
+            </button>
+            <button
               class="secondary-button timer-control-button"
               type="button"
               @click="
@@ -1040,21 +1335,23 @@ onMounted(loadPlanning);
                       <span class="visually-hidden">
                         Mover {{ planned.topicName }} para outro dia disponível
                       </span>
-                      <select
-                        :value="day.date"
+                      <AppSelect
+                        :model-value="day.date"
                         :disabled="saving"
+                        :options="
+                          planning.plan.days
+                            .filter(
+                              (item) => item.available && item.date >= today,
+                            )
+                            .map((option) => ({
+                              value: option.date,
+                              label: dayLabels[option.weekday],
+                            }))
+                        "
+                        :aria-label="`Mover ${planned.topicName} para outro dia disponível`"
+                        class="planned-day-select"
                         @change="moveTopic(planned.topicId, $event)"
-                      >
-                        <option
-                          v-for="option in planning.plan.days.filter(
-                            (item) => item.available && item.date >= today,
-                          )"
-                          :key="option.date"
-                          :value="option.date"
-                        >
-                          {{ dayLabels[option.weekday] }}
-                        </option>
-                      </select>
+                      />
                     </label>
                     <button
                       v-if="planned.manuallyScheduled"
@@ -1103,6 +1400,20 @@ onMounted(loadPlanning);
                         Iniciar cronômetro
                       </button>
                       <template v-else>
+                        <button
+                          class="icon-action timer-focus-trigger"
+                          type="button"
+                          aria-label="Abrir cronômetro em tela cheia"
+                          title="Abrir cronômetro em tela cheia"
+                          @click="focusTimerOpen = true"
+                        >
+                          <span
+                            class="material-symbols-rounded"
+                            aria-hidden="true"
+                          >
+                            open_in_full
+                          </span>
+                        </button>
                         <button
                           class="secondary-button timer-control-button"
                           type="button"
@@ -1355,4 +1666,87 @@ onMounted(loadPlanning);
       </template>
     </main>
   </div>
+
+  <Transition name="timer-focus">
+    <section
+      v-if="focusTimerOpen && timedTopicId"
+      class="timer-focus-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="timer-focus-heading"
+    >
+      <div class="timer-focus-card">
+        <button
+          class="icon-action timer-focus-close"
+          type="button"
+          aria-label="Fechar tela cheia"
+          title="Fechar tela cheia"
+          autofocus
+          @click="focusTimerOpen = false"
+        >
+          <span class="material-symbols-rounded" aria-hidden="true">
+            close
+          </span>
+        </button>
+        <div class="timer-focus-orbit" aria-hidden="true">
+          <div class="timer-focus-orbit-track"></div>
+          <div class="timer-focus-orbit-inner">
+            <span class="material-symbols-rounded">timer</span>
+          </div>
+        </div>
+        <p class="eyebrow">{{ focusTimerSubject }}</p>
+        <h2 id="timer-focus-heading">
+          {{ focusTimerTopic?.name ?? "Tópico de estudo" }}
+        </h2>
+        <output
+          class="timer-focus-display"
+          aria-live="off"
+          :aria-label="`Tempo de estudo: ${formatElapsedTime(activeStudyTimer.elapsedSeconds)}`"
+        >
+          {{ formatElapsedTime(activeStudyTimer.elapsedSeconds) }}
+        </output>
+        <p class="timer-focus-status">
+          {{ activeStudyTimer.isRunning ? "Sessão em andamento" : "Pausado" }}
+        </p>
+        <div class="timer-focus-controls">
+          <button
+            class="timer-focus-icon-button"
+            type="button"
+            :aria-label="
+              activeStudyTimer.isRunning
+                ? 'Pausar cronômetro'
+                : 'Continuar cronômetro'
+            "
+            :title="
+              activeStudyTimer.isRunning
+                ? 'Pausar cronômetro'
+                : 'Continuar cronômetro'
+            "
+            @click="
+              activeStudyTimer.isRunning
+                ? pauseStudyTimer()
+                : resumeStudyTimer()
+            "
+          >
+            <span class="material-symbols-rounded" aria-hidden="true">
+              {{ activeStudyTimer.isRunning ? "pause" : "play_arrow" }}
+            </span>
+          </button>
+          <button
+            class="timer-focus-icon-button timer-focus-finish"
+            type="button"
+            aria-label="Finalizar sessão"
+            title="Finalizar sessão"
+            :disabled="saving"
+            @click="finishTimedSession"
+          >
+            <span class="material-symbols-rounded" aria-hidden="true">
+              {{ saving ? "hourglass_top" : "stop" }}
+            </span>
+          </button>
+        </div>
+        <p class="timer-focus-hint">Pressione Esc para sair</p>
+      </div>
+    </section>
+  </Transition>
 </template>

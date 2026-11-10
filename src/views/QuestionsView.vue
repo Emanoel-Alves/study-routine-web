@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import { RouterLink, useRouter } from "vue-router";
+import AppSelect from "../components/AppSelect.vue";
 import { currentUser, logout } from "../auth";
 import { getContent, type ContentSnapshot, type Topic } from "../content";
 import {
@@ -61,6 +62,35 @@ const availableTopics = computed(() =>
       : topic.subjectId === subjectFilter.value,
   ),
 );
+const questionTopicOptions = computed(() =>
+  content.value.topics.map((topic) => ({
+    value: topic.id,
+    label: `${getSubjectName(topic.subjectId)} — ${topic.name}`,
+  })),
+);
+const subjectFilterOptions = computed(() => [
+  { value: "all", label: "Todas" },
+  ...content.value.subjects.map((subject) => ({
+    value: subject.id,
+    label: subject.name,
+  })),
+]);
+const topicFilterOptions = computed(() => [
+  { value: "all", label: "Todos" },
+  ...availableTopics.value.map((topic) => ({
+    value: topic.id,
+    label: topic.name,
+  })),
+]);
+const correctOptionOptions = computed(() =>
+  draft.optionsText
+    .split(/\r?\n/)
+    .filter((item) => item.trim())
+    .map((option, index) => ({
+      value: String(index),
+      label: `${optionLetter(index)} — ${option.slice(0, 60)}`,
+    })),
+);
 const visibleQuestions = computed(() =>
   questions.value.filter((question) => {
     if (
@@ -81,6 +111,17 @@ const activeQuestionCount = computed(
   () =>
     questions.value.filter((question) => question.status === "active").length,
 );
+const questionStatusOptions = [
+  { value: "active", label: "Ativa" },
+  { value: "annulled", label: "Anulada" },
+  { value: "outdated", label: "Desatualizada" },
+];
+const questionStatusFilterOptions = [
+  { value: "active", label: "Para resolver (ativas)" },
+  { value: "all", label: "Todas as situações" },
+  { value: "annulled", label: "Anuladas" },
+  { value: "outdated", label: "Desatualizadas" },
+];
 
 function getTopic(topicId: string): Topic | undefined {
   return content.value.topics.find((topic) => topic.id === topicId);
@@ -378,16 +419,13 @@ onMounted(loadQuestions);
         >
           <label>
             Tópico
-            <select v-model="draft.topicId" required>
-              <option disabled value="">Selecione um tópico</option>
-              <option
-                v-for="topic in content.topics"
-                :key="topic.id"
-                :value="topic.id"
-              >
-                {{ getSubjectName(topic.subjectId) }} — {{ topic.name }}
-              </option>
-            </select>
+            <AppSelect
+              v-model="draft.topicId"
+              :options="questionTopicOptions"
+              placeholder="Selecione um tópico"
+              required
+              aria-label="Tópico da questão"
+            />
           </label>
           <label class="questions-form-wide">
             Enunciado ou resumo próprio
@@ -410,25 +448,20 @@ onMounted(loadQuestions);
           </label>
           <label>
             Gabarito
-            <select v-model="draft.correctOption" required>
-              <option
-                v-for="(option, index) in draft.optionsText
-                  .split(/\r?\n/)
-                  .filter((item) => item.trim())"
-                :key="`${index}-${option}`"
-                :value="String(index)"
-              >
-                {{ optionLetter(index) }} — {{ option.slice(0, 60) }}
-              </option>
-            </select>
+            <AppSelect
+              v-model="draft.correctOption"
+              :options="correctOptionOptions"
+              required
+              aria-label="Gabarito"
+            />
           </label>
           <label>
             Situação
-            <select v-model="draft.status">
-              <option value="active">Ativa</option>
-              <option value="annulled">Anulada</option>
-              <option value="outdated">Desatualizada</option>
-            </select>
+            <AppSelect
+              v-model="draft.status"
+              :options="questionStatusOptions"
+              aria-label="Situação"
+            />
           </label>
           <label class="questions-form-wide">
             Explicação (opcional)
@@ -527,38 +560,28 @@ onMounted(loadQuestions);
       <section class="questions-toolbar" aria-label="Filtros de questões">
         <label class="filter-field">
           Disciplina
-          <select v-model="subjectFilter" @change="topicFilter = 'all'">
-            <option value="all">Todas</option>
-            <option
-              v-for="subject in content.subjects"
-              :key="subject.id"
-              :value="subject.id"
-            >
-              {{ subject.name }}
-            </option>
-          </select>
+          <AppSelect
+            v-model="subjectFilter"
+            :options="subjectFilterOptions"
+            aria-label="Disciplina"
+            @change="topicFilter = 'all'"
+          />
         </label>
         <label class="filter-field">
           Tópico
-          <select v-model="topicFilter">
-            <option value="all">Todos</option>
-            <option
-              v-for="topic in availableTopics"
-              :key="topic.id"
-              :value="topic.id"
-            >
-              {{ topic.name }}
-            </option>
-          </select>
+          <AppSelect
+            v-model="topicFilter"
+            :options="topicFilterOptions"
+            aria-label="Tópico"
+          />
         </label>
         <label class="filter-field">
           Exibição
-          <select v-model="statusFilter">
-            <option value="active">Para resolver (ativas)</option>
-            <option value="all">Todas as situações</option>
-            <option value="annulled">Anuladas</option>
-            <option value="outdated">Desatualizadas</option>
-          </select>
+          <AppSelect
+            v-model="statusFilter"
+            :options="questionStatusFilterOptions"
+            aria-label="Exibição"
+          />
         </label>
         <p class="questions-count">
           {{ activeQuestionCount }} ativa(s) no banco

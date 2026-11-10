@@ -60,7 +60,9 @@ export interface StudySession {
 
 export interface PlanningSnapshot {
   plans: StudyPlanSummary[];
-  activePlan: Pick<StudyPlanSummary, "id" | "name">;
+  activePlan: Pick<StudyPlanSummary, "id" | "name"> & {
+    selectedTopicIds: string[] | null;
+  };
   preferences: StudyPreferences;
   plan: WeeklyPlan;
   sessions: StudySession[];
@@ -86,10 +88,13 @@ export function getPlanning(): Promise<PlanningSnapshot> {
   return requestApi("/api/planning");
 }
 
-export function createStudyPlan(name: string): Promise<StudyPlanSummary> {
+export function createStudyPlan(
+  name: string,
+  topicIds: string[],
+): Promise<StudyPlanSummary> {
   return requestApi("/api/planning/plans", {
     method: "POST",
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, topicIds }),
   });
 }
 
@@ -102,12 +107,27 @@ export function activateStudyPlan(planId: string): Promise<StudyPlanSummary> {
   );
 }
 
+export function deleteStudyPlan(planId: string): Promise<{ deleted: true }> {
+  return requestApi(`/api/planning/plans/${encodeURIComponent(planId)}`, {
+    method: "DELETE",
+  });
+}
+
 export function savePreferences(
   preferences: StudyPreferences,
 ): Promise<StudyPreferences> {
   return requestApi("/api/planning/preferences", {
     method: "PATCH",
     body: JSON.stringify(preferences),
+  });
+}
+
+export function saveSelectedTopics(
+  topicIds: string[],
+): Promise<{ selectedTopicIds: string[] }> {
+  return requestApi("/api/planning/topics", {
+    method: "PATCH",
+    body: JSON.stringify({ topicIds }),
   });
 }
 

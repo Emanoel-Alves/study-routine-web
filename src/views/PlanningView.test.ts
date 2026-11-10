@@ -5,6 +5,9 @@ import { currentUser, logout } from "../auth";
 import { activeStudyTimer } from "../study-timer";
 import PlanningView from "./PlanningView.vue";
 
+HTMLElement.prototype.hasPointerCapture ??= () => false;
+HTMLElement.prototype.releasePointerCapture ??= () => {};
+
 function response(data: unknown, status = 200): Response {
   return {
     ok: status >= 200 && status < 300,
@@ -28,6 +31,21 @@ async function mountPlanningView() {
   });
   await flushPromises();
   return wrapper;
+}
+
+async function chooseSelectOption(
+  wrapper: Awaited<ReturnType<typeof mountPlanningView>>,
+  selector: string,
+  label: string,
+): Promise<void> {
+  await wrapper.get(selector).trigger("pointerdown");
+  await flushPromises();
+  const option = Array.from(
+    document.querySelectorAll<HTMLElement>(".app-select-item"),
+  ).find((item) => item.textContent?.trim() === label);
+  expect(option).toBeDefined();
+  option!.dispatchEvent(new Event("pointerup", { bubbles: true }));
+  await flushPromises();
 }
 
 describe("PlanningView timer", () => {
@@ -189,25 +207,31 @@ describe("PlanningView timer", () => {
     await flushPromises();
 
     expect(wrapper.get(".timer-display").text()).toBe("00:01:05");
-    await wrapper.get(".timer-control-button").trigger("click");
+    await wrapper.get(".timer-focus-trigger").trigger("click");
+    expect(wrapper.get('[role="dialog"]').text()).toContain(
+      "Modelagem relacional",
+    );
+    expect(wrapper.get(".timer-focus-display").text()).toBe("00:01:05");
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    await flushPromises();
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
+
+    await wrapper.get(".timer-focus-trigger").trigger("click");
+    await wrapper
+      .get('button[aria-label="Pausar cronômetro"]')
+      .trigger("click");
     await vi.advanceTimersByTimeAsync(30_000);
     await flushPromises();
     expect(wrapper.get(".timer-display").text()).toBe("00:01:05");
 
-    const continueButton = wrapper
-      .findAll("button")
-      .find((button) => button.text().includes("Continuar"));
-    expect(continueButton).toBeDefined();
-    await continueButton!.trigger("click");
+    await wrapper
+      .get('button[aria-label="Continuar cronômetro"]')
+      .trigger("click");
     await vi.advanceTimersByTimeAsync(10_000);
     await flushPromises();
     expect(wrapper.get(".timer-display").text()).toBe("00:01:15");
 
-    const finishButton = wrapper
-      .findAll("button")
-      .find((button) => button.text().includes("Finalizar"));
-    expect(finishButton).toBeDefined();
-    await finishButton!.trigger("click");
+    await wrapper.get('button[aria-label="Finalizar sessão"]').trigger("click");
     await flushPromises();
 
     expect(registeredSession).toEqual({
@@ -233,28 +257,81 @@ describe("PlanningView timer", () => {
         createdAt: new Date().toISOString(),
       },
     ];
+    const subjects = [
+      {
+        id: "subject-1",
+        name: "Banco de Dados",
+        description: "",
+        notes: "",
+        position: 0,
+        archived: false,
+      },
+    ];
+    const topics = ["topic-1", "topic-2"].map((id, position) => ({
+      id,
+      subjectId: "subject-1",
+      name: `Tópico ${position + 1}`,
+      description: "",
+      notes: "",
+      position,
+      status: "not_started",
+      estimatedMinutes: 45,
+      reviewDueAt: null,
+    }));
+    const topicSelections: Record<string, string[] | null> = {
+      default: null,
+    };
     let activePlanId = "default";
     let nextPlanId = 1;
+    vi.stubGlobal(
+      "confirm",
+      vi.fn(() => true),
+    );
 
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
+        if (
+          url.endsWith("/api/planning/plans/plan-1") &&
+          init?.method === "DELETE"
+        ) {
+          plans.splice(
+            plans.findIndex((plan) => plan.id === "plan-1"),
+            1,
+          );
+          delete topicSelections["plan-1"];
+          activePlanId = "default";
+          for (const plan of plans) plan.active = plan.id === activePlanId;
+          return response({ deleted: true });
+        }
         if (url.endsWith("/api/content")) {
-          return response({ subjects: [], topics: [], materials: [] });
+          return response({ subjects, topics, materials: [] });
         }
         if (url.endsWith("/api/planning/plans") && init?.method === "POST") {
-          const { name } = JSON.parse(String(init.body)) as { name: string };
+          const { name, topicIds } = JSON.parse(String(init.body)) as {
+            name: string;
+            topicIds: string[];
+          };
           const plan = {
             id: `plan-${nextPlanId++}`,
             name,
             active: true,
             createdAt: new Date().toISOString(),
+            selectedTopicIds: topicIds,
           };
           for (const item of plans) item.active = false;
           plans.push(plan);
+          topicSelections[plan.id] = topicIds;
           activePlanId = plan.id;
           return response(plan, 201);
+        }
+        if (url.endsWith("/api/planning/topics") && init?.method === "PATCH") {
+          const { topicIds } = JSON.parse(String(init.body)) as {
+            topicIds: string[];
+          };
+          topicSelections[activePlanId] = topicIds;
+          return response({ selectedTopicIds: topicIds });
         }
         if (url.includes("/api/planning/plans/") && url.endsWith("/activate")) {
           const planId = url.split("/").at(-2);
@@ -267,6 +344,7 @@ describe("PlanningView timer", () => {
           activePlan: {
             id: activePlanId,
             name: plans.find((item) => item.id === activePlanId)?.name ?? "",
+            selectedTopicIds: topicSelections[activePlanId] ?? null,
           },
           preferences: {
             studyDays: [weekday],
@@ -291,26 +369,92 @@ describe("PlanningView timer", () => {
     );
 
     const wrapper = await mountPlanningView();
-    await wrapper.get(".planning-profile-panel button").trigger("click");
+    expect(wrapper.find(".planning-topics-panel").exists()).toBe(false);
+    const newPlanButton = wrapper
+      .findAll(".planning-profile-actions button")
+      .find((button) => button.text().includes("Novo planejamento"));
+    expect(newPlanButton).toBeDefined();
+    await newPlanButton!.trigger("click");
+    expect(wrapper.find(".planning-topics-panel").exists()).toBe(true);
     await wrapper.get("#planning-profile-name").setValue("Concurso UFC 2027");
+    const creationTopicCheckboxes = wrapper.findAll(
+      ".planning-topic-choice input[type=checkbox]",
+    );
+    expect(creationTopicCheckboxes).toHaveLength(2);
+    await creationTopicCheckboxes[0].setValue(true);
     await wrapper.get(".planning-profile-form").trigger("submit");
     await flushPromises();
 
     expect(wrapper.text()).toContain(
       'Planejamento "Concurso UFC 2027" criado e selecionado.',
     );
-    const planSelect = wrapper.get(".planning-profile-select select");
-    expect((planSelect.element as HTMLSelectElement).value).toBe("plan-1");
-
-    await planSelect.setValue("default");
+    expect(topicSelections["plan-1"]).toEqual(["topic-1"]);
+    expect(wrapper.find(".planning-topics-panel").exists()).toBe(false);
+    expect(wrapper.text()).toContain("0 de 1 tópicos · 0%");
+    expect(
+      wrapper.get(".planning-profile-select .app-select-trigger").text(),
+    ).toContain("Concurso UFC 2027");
+    await wrapper.get(".planning-profile-actions button").trigger("click");
+    const topicCheckboxes = wrapper.findAll(
+      ".planning-topic-choice input[type=checkbox]",
+    );
+    expect((topicCheckboxes[0].element as HTMLInputElement).checked).toBe(true);
+    expect((topicCheckboxes[1].element as HTMLInputElement).checked).toBe(
+      false,
+    );
+    await topicCheckboxes[1].setValue(true);
+    await wrapper.get(".planning-topic-footer button").trigger("click");
     await flushPromises();
+    expect(topicSelections["plan-1"]).toEqual(["topic-1", "topic-2"]);
+    expect(wrapper.find(".planning-topics-panel").exists()).toBe(false);
+    expect(wrapper.text()).toContain("0 de 2 tópicos · 0%");
+
+    await chooseSelectOption(
+      wrapper,
+      ".planning-profile-select .app-select-trigger",
+      "Meu planejamento",
+    );
     expect(wrapper.text()).toContain(
       'Planejamento "Meu planejamento" selecionado.',
     );
-    expect((planSelect.element as HTMLSelectElement).value).toBe("default");
     expect(wrapper.get('input[type="number"]').element).toHaveProperty(
       "value",
       "90",
     );
+    expect(wrapper.find(".planning-topics-panel").exists()).toBe(false);
+    expect(wrapper.text()).toContain("0 de 2 tópicos · 0%");
+    await chooseSelectOption(
+      wrapper,
+      ".planning-profile-select .app-select-trigger",
+      "Concurso UFC 2027",
+    );
+    await wrapper.get(".planning-profile-actions button").trigger("click");
+    const planTopicCheckboxes = wrapper.findAll(
+      ".planning-topic-choice input[type=checkbox]",
+    );
+    expect((planTopicCheckboxes[0].element as HTMLInputElement).checked).toBe(
+      true,
+    );
+    expect((planTopicCheckboxes[1].element as HTMLInputElement).checked).toBe(
+      true,
+    );
+    await wrapper
+      .get(".planning-topic-footer .secondary-button")
+      .trigger("click");
+    await wrapper
+      .get(".planning-profile-actions .danger-button")
+      .trigger("click");
+    await flushPromises();
+    expect(vi.mocked(window.confirm)).toHaveBeenCalledOnce();
+    expect(plans.map((plan) => plan.id)).toEqual(["default"]);
+    expect(wrapper.text()).toContain(
+      'Planejamento "Concurso UFC 2027" apagado.',
+    );
+    expect(
+      wrapper.get(".planning-profile-select .app-select-trigger").text(),
+    ).toContain("Meu planejamento");
+    expect(
+      wrapper.find(".planning-profile-actions .danger-button").exists(),
+    ).toBe(false);
   });
 });
