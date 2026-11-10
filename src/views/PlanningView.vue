@@ -318,8 +318,11 @@ function hasActiveQuestions(topicId: string): boolean {
   return activeQuestionTopicIds.value.has(topicId);
 }
 
-const qconcursosExamUrl =
-  "https://www.qconcursos.com/questoes-de-concursos/provas/fcpc-2025-ufc-analista-de-tecnologia-da-informacao-area-governanca-de-ti/questoes";
+function qconcursosTopicUrl(topicName: string): string {
+  const url = new URL("https://www.qconcursos.com/nova-busca");
+  url.searchParams.set("q", topicName);
+  return url.toString();
+}
 
 function draftFor(topic: Topic) {
   if (!sessionDrafts[topic.id]) {
@@ -1438,11 +1441,11 @@ function handleStudySessionUpdated(): void {
                   </button>
                   <a
                     class="icon-action planned-topic-qconcursos"
-                    :href="qconcursosExamUrl"
+                    :href="qconcursosTopicUrl(planned.topicName)"
                     target="_blank"
                     rel="noopener noreferrer"
-                    :aria-label="`Ver prova UFC/FCPC 2025 no QConcursos para ${planned.topicName}`"
-                    :title="`Ver prova UFC/FCPC 2025 no QConcursos para ${planned.topicName}`"
+                    :aria-label="`Buscar ${planned.topicName} em concursos no QConcursos`"
+                    :title="`Buscar ${planned.topicName} em concursos no QConcursos`"
                   >
                     <span class="material-symbols-rounded" aria-hidden="true">
                       open_in_new
