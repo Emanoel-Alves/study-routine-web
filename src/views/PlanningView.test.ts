@@ -259,10 +259,10 @@ describe("PlanningView timer", () => {
         .attributes("href"),
     ).toBe("/questions?topicId=topic-1");
     const qconcursosLink = wrapper.get(
-      'a[aria-label="Buscar Modelagem relacional no QConcursos"]',
+      'a[aria-label="Ver prova UFC/FCPC 2025 no QConcursos para Modelagem relacional"]',
     );
     expect(qconcursosLink.attributes("href")).toBe(
-      "https://www.qconcursos.com/nova-busca?q=Modelagem+relacional",
+      "https://www.qconcursos.com/questoes-de-concursos/provas/fcpc-2025-ufc-analista-de-tecnologia-da-informacao-area-governanca-de-ti/questoes",
     );
     expect(qconcursosLink.attributes("target")).toBe("_blank");
     expect(qconcursosLink.attributes("rel")).toBe("noopener noreferrer");
