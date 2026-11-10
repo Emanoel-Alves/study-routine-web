@@ -23,6 +23,7 @@ function pwaServiceWorker(): Plugin {
         "favicon.svg",
         "icon-192.png",
         "icon-512.png",
+        "qconcursos-icon.png",
       ];
       const precacheFiles = [
         "index.html",

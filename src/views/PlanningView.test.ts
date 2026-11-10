@@ -266,6 +266,9 @@ describe("PlanningView timer", () => {
     );
     expect(qconcursosLink.attributes("target")).toBe("_blank");
     expect(qconcursosLink.attributes("rel")).toBe("noopener noreferrer");
+    expect(qconcursosLink.get("img").attributes("src")).toBe(
+      "/qconcursos-icon.png",
+    );
     await wrapper.get("#target-date-trigger").trigger("click");
     expect(wrapper.find("#target-date-calendar").exists()).toBe(true);
     expect(wrapper.find('input[type="date"]').exists()).toBe(false);

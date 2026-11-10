@@ -324,6 +324,8 @@ function qconcursosTopicUrl(topicName: string): string {
   return url.toString();
 }
 
+const qconcursosIconUrl = `${import.meta.env.BASE_URL}qconcursos-icon.png`;
+
 function draftFor(topic: Topic) {
   if (!sessionDrafts[topic.id]) {
     sessionDrafts[topic.id] = {
@@ -1447,9 +1449,7 @@ function handleStudySessionUpdated(): void {
                     :aria-label="`Buscar ${planned.topicName} em concursos no QConcursos`"
                     :title="`Buscar ${planned.topicName} em concursos no QConcursos`"
                   >
-                    <span class="material-symbols-rounded" aria-hidden="true">
-                      open_in_new
-                    </span>
+                    <img :src="qconcursosIconUrl" alt="" aria-hidden="true" />
                   </a>
                   <div class="planned-topic-actions">
                     <label>

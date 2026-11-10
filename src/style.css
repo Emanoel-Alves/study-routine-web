@@ -2498,6 +2498,13 @@ h1 {
   justify-self: center;
 }
 
+.planned-topic-qconcursos img {
+  width: 21px;
+  height: 21px;
+  border-radius: 5px;
+  object-fit: cover;
+}
+
 .planned-topic-actions {
   grid-column: 4;
   align-self: center;
@@ -3530,11 +3537,18 @@ h1 {
   }
 
   .timer-action-group {
+    display: flex;
+    width: 100%;
     max-width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .timer-action-group .timer-focus-trigger,
+  .timer-action-group .timer-control-button {
+    flex: 1 1 auto;
   }
 
   .timer-action-group .timer-control-button {
-    flex: 0 1 auto;
     white-space: nowrap;
   }
 
