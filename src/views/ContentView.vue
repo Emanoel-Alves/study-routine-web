@@ -5,6 +5,7 @@ import AppSelect from "../components/AppSelect.vue";
 import ConfirmDialog from "../components/ConfirmDialog.vue";
 import { currentUser, logout } from "../auth";
 import { requestConfirmation } from "../confirm-dialog";
+import { qconcursosUrl } from "../qconcursos";
 import {
   createMaterial,
   createSubject,
@@ -27,6 +28,7 @@ import {
 } from "../content";
 
 const router = useRouter();
+const qconcursosIconUrl = `${import.meta.env.BASE_URL}qconcursos-icon.png`;
 const content = ref<ContentSnapshot>({
   subjects: [],
   topics: [],
@@ -844,6 +846,23 @@ function openTopicResult(topic: Topic) {
                 </span>
               </div>
               <div class="action-row subject-actions">
+                <a
+                  class="icon-action icon-action--large qconcursos-content-link"
+                  :href="
+                    qconcursosUrl(selectedSubject.name, selectedSubject.name)
+                  "
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  :aria-label="`Buscar ${selectedSubject.name} em concursos no QConcursos`"
+                  :title="`Buscar ${selectedSubject.name} em concursos no QConcursos`"
+                >
+                  <img
+                    class="qconcursos-link-icon"
+                    :src="qconcursosIconUrl"
+                    alt=""
+                    aria-hidden="true"
+                  />
+                </a>
                 <button
                   class="icon-action icon-action--large"
                   type="button"
@@ -1014,6 +1033,21 @@ function openTopicResult(topic: Topic) {
                   />
                 </label>
                 <div class="topic-actions">
+                  <a
+                    class="icon-action qconcursos-content-link"
+                    :href="qconcursosUrl(topic.name, selectedSubject.name)"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    :aria-label="`Buscar ${topic.name} em concursos no QConcursos`"
+                    :title="`Buscar ${topic.name} em concursos no QConcursos`"
+                  >
+                    <img
+                      class="qconcursos-link-icon"
+                      :src="qconcursosIconUrl"
+                      alt=""
+                      aria-hidden="true"
+                    />
+                  </a>
                   <button
                     class="icon-action"
                     type="button"

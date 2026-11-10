@@ -138,6 +138,28 @@ describe("ContentView", () => {
 
     const wrapper = await mountContentView();
 
+    const subjectQconcursosLink = wrapper.get(
+      'a[aria-label="Buscar Direito Constitucional em concursos no QConcursos"]',
+    );
+    expect(subjectQconcursosLink.attributes("href")).toBe(
+      "https://www.qconcursos.com/nova-busca?q=Direito+Constitucional",
+    );
+    expect(subjectQconcursosLink.attributes("target")).toBe("_blank");
+    expect(subjectQconcursosLink.attributes("rel")).toBe("noopener noreferrer");
+    expect(subjectQconcursosLink.get("img").attributes("src")).toBe(
+      "/qconcursos-icon.png",
+    );
+    const topicQconcursosLink = wrapper.get(
+      'a[aria-label="Buscar Direitos fundamentais em concursos no QConcursos"]',
+    );
+    expect(topicQconcursosLink.attributes("href")).toBe(
+      "https://www.qconcursos.com/nova-busca?q=Direitos+fundamentais",
+    );
+    expect(topicQconcursosLink.attributes("target")).toBe("_blank");
+    expect(topicQconcursosLink.attributes("rel")).toBe("noopener noreferrer");
+    expect(topicQconcursosLink.get("img").attributes("src")).toBe(
+      "/qconcursos-icon.png",
+    );
     expect(
       wrapper
         .get('button[aria-label="Editar disciplina Direito Constitucional"]')

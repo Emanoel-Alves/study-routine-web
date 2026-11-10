@@ -1359,6 +1359,7 @@ h1 {
 
 .topic-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 7px;
@@ -2498,7 +2499,7 @@ h1 {
   justify-self: center;
 }
 
-.planned-topic-qconcursos img {
+.qconcursos-link-icon {
   width: 21px;
   height: 21px;
   border-radius: 5px;

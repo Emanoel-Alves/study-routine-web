@@ -30,6 +30,7 @@ import {
   type StudySession,
 } from "../planning";
 import { getQuestions, type StudyQuestion } from "../questions";
+import { qconcursosUrl } from "../qconcursos";
 import {
   activeStudyTimer,
   focusTimerOpen,
@@ -316,12 +317,6 @@ function getTopic(topicId: string): Topic | undefined {
 
 function hasActiveQuestions(topicId: string): boolean {
   return activeQuestionTopicIds.value.has(topicId);
-}
-
-function qconcursosTopicUrl(topicName: string): string {
-  const url = new URL("https://www.qconcursos.com/nova-busca");
-  url.searchParams.set("q", topicName);
-  return url.toString();
 }
 
 const qconcursosIconUrl = `${import.meta.env.BASE_URL}qconcursos-icon.png`;
@@ -1443,13 +1438,20 @@ function handleStudySessionUpdated(): void {
                   </button>
                   <a
                     class="icon-action planned-topic-qconcursos"
-                    :href="qconcursosTopicUrl(planned.topicName)"
+                    :href="
+                      qconcursosUrl(planned.topicName, planned.subjectName)
+                    "
                     target="_blank"
                     rel="noopener noreferrer"
                     :aria-label="`Buscar ${planned.topicName} em concursos no QConcursos`"
                     :title="`Buscar ${planned.topicName} em concursos no QConcursos`"
                   >
-                    <img :src="qconcursosIconUrl" alt="" aria-hidden="true" />
+                    <img
+                      class="qconcursos-link-icon"
+                      :src="qconcursosIconUrl"
+                      alt=""
+                      aria-hidden="true"
+                    />
                   </a>
                   <div class="planned-topic-actions">
                     <label>
