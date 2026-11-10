@@ -162,3 +162,20 @@ export function registerSession(
     body: JSON.stringify(input),
   });
 }
+
+export function deleteStudySession(
+  sessionId: string,
+): Promise<{ deleted: true }> {
+  return requestApi(`/api/planning/sessions/${encodeURIComponent(sessionId)}`, {
+    method: "DELETE",
+  });
+}
+
+export function deleteStudySessions(
+  input: { all: true } | { sessionIds: string[] },
+): Promise<{ deletedCount: number }> {
+  return requestApi("/api/planning/sessions", {
+    method: "DELETE",
+    body: JSON.stringify(input),
+  });
+}

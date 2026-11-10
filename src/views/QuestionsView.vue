@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
-import { RouterLink, useRouter } from "vue-router";
+import { computed, onMounted, reactive, ref, watch } from "vue";
+import { RouterLink, useRoute, useRouter } from "vue-router";
 import AppSelect from "../components/AppSelect.vue";
 import { currentUser, logout } from "../auth";
 import { getContent, type ContentSnapshot, type Topic } from "../content";
@@ -8,6 +8,7 @@ import {
   createQuestion,
   deleteQuestion,
   getQuestions,
+  importUfcGovernanceQuestions,
   updateQuestion,
   type QuestionStatus,
   type StudyQuestion,
@@ -21,6 +22,7 @@ interface QuestionAttempt {
 }
 
 const router = useRouter();
+const route = useRoute();
 const content = ref<ContentSnapshot>({
   subjects: [],
   topics: [],
@@ -287,6 +289,28 @@ async function removeQuestion(question: StudyQuestion): Promise<void> {
   }
 }
 
+async function importUfcQuestions(): Promise<void> {
+  pageError.value = "";
+  successMessage.value = "";
+  saving.value = true;
+  try {
+    const result = await importUfcGovernanceQuestions();
+    const refreshedQuestions = await getQuestions();
+    questions.value = refreshedQuestions;
+    successMessage.value =
+      result.createdCount > 0
+        ? `${result.createdCount} questões autorais adicionadas; ${result.existingCount} já estavam no banco. As respostas aparecem somente depois de responder.`
+        : `As ${result.totalCount} questões deste conjunto já estavam no banco.`;
+  } catch (error) {
+    pageError.value =
+      error instanceof Error
+        ? error.message
+        : "Não foi possível importar as questões autorais.";
+  } finally {
+    saving.value = false;
+  }
+}
+
 async function loadQuestions(): Promise<void> {
   loading.value = true;
   pageError.value = "";
@@ -297,6 +321,7 @@ async function loadQuestions(): Promise<void> {
     ]);
     content.value = contentResult;
     questions.value = questionResult;
+    applyTopicFilterFromRoute();
   } catch (error) {
     pageError.value =
       error instanceof Error
@@ -305,6 +330,23 @@ async function loadQuestions(): Promise<void> {
   } finally {
     loading.value = false;
   }
+}
+
+function applyTopicFilterFromRoute(): void {
+  const topicId = route.query.topicId;
+  if (typeof topicId !== "string") {
+    subjectFilter.value = "all";
+    topicFilter.value = "all";
+    return;
+  }
+  const topic = content.value.topics.find((item) => item.id === topicId);
+  if (!topic) {
+    subjectFilter.value = "all";
+    topicFilter.value = "all";
+    return;
+  }
+  subjectFilter.value = topic.subjectId;
+  topicFilter.value = topic.id;
 }
 
 function checkAnswer(question: StudyQuestion): void {
@@ -327,6 +369,7 @@ async function logoutAndReturnToLogin(): Promise<void> {
   await router.replace({ name: "login" });
 }
 
+watch(() => route.query.topicId, applyTopicFilterFromRoute);
 onMounted(loadQuestions);
 </script>
 
@@ -367,16 +410,34 @@ onMounted(loadQuestions);
             mantém sua fonte e fica vinculada ao tópico correspondente.
           </p>
         </div>
-        <button
-          class="primary-button"
-          type="button"
-          :disabled="content.topics.length === 0"
-          @click="openQuestionForm()"
-        >
-          <span class="material-symbols-rounded" aria-hidden="true">add</span>
-          Adicionar questão
-        </button>
+        <div class="question-heading-actions">
+          <button
+            class="secondary-button"
+            type="button"
+            :disabled="saving || content.topics.length === 0"
+            @click="importUfcQuestions"
+          >
+            <span class="material-symbols-rounded" aria-hidden="true">
+              playlist_add
+            </span>
+            Importar 30 questões autorais
+          </button>
+          <button
+            class="primary-button"
+            type="button"
+            :disabled="content.topics.length === 0"
+            @click="openQuestionForm()"
+          >
+            <span class="material-symbols-rounded" aria-hidden="true">add</span>
+            Adicionar questão
+          </button>
+        </div>
       </div>
+      <p class="question-import-note">
+        Conjunto de 30 adaptações autorais baseadas nos temas do caderno
+        UFC/FCPC 2025, sem transcrição dos enunciados. A importação adiciona
+        somente as questões que ainda não estão no seu banco.
+      </p>
 
       <p
         v-if="pageError"

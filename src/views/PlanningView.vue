@@ -15,6 +15,8 @@ import {
   activateStudyPlan,
   createStudyPlan,
   deleteStudyPlan,
+  deleteStudySession,
+  deleteStudySessions,
   getPlanning,
   movePlannedTopic,
   registerSession,
@@ -25,6 +27,7 @@ import {
   type StudyPreferences,
   type StudySession,
 } from "../planning";
+import { getQuestions, type StudyQuestion } from "../questions";
 import {
   activeStudyTimer,
   getTimedStudySession,
@@ -63,13 +66,23 @@ const emptyPlanning: PlanningSnapshot = {
   sessions: [],
 };
 const content = ref<ContentSnapshot>(emptyContent);
+const questions = ref<StudyQuestion[]>([]);
 const planning = ref<PlanningSnapshot>(emptyPlanning);
+const activeQuestionTopicIds = computed(
+  () =>
+    new Set(
+      questions.value
+        .filter((question) => question.status === "active")
+        .map((question) => question.topicId),
+    ),
+);
 const loading = ref(true);
 const saving = ref(false);
 const errorMessage = ref("");
 const successMessage = ref("");
 const selectedPlanId = ref("");
 const selectedTopicIdsDraft = ref<string[]>([]);
+const selectedSessionIds = ref<string[]>([]);
 const planFormOpen = ref(false);
 const topicEditorOpen = ref(false);
 const focusTimerOpen = ref(false);
@@ -307,6 +320,10 @@ function getTopic(topicId: string): Topic | undefined {
   return content.value.topics.find((topic) => topic.id === topicId);
 }
 
+function hasActiveQuestions(topicId: string): boolean {
+  return activeQuestionTopicIds.value.has(topicId);
+}
+
 function draftFor(topic: Topic) {
   if (!sessionDrafts[topic.id]) {
     sessionDrafts[topic.id] = {
@@ -415,12 +432,14 @@ async function loadPlanning(): Promise<boolean> {
   loading.value = true;
   errorMessage.value = "";
   try {
-    const [planningResult, contentResult] = await Promise.all([
+    const [planningResult, contentResult, questionResult] = await Promise.all([
       getPlanning(),
       getContent(),
+      getQuestions(),
     ]);
     planning.value = planningResult;
     content.value = contentResult;
+    questions.value = questionResult;
     selectedPlanId.value = planningResult.activePlan.id;
     resetTopicSelectionDraft();
     preferencesDraft.studyDays = [...planningResult.preferences.studyDays];
@@ -501,6 +520,47 @@ async function removeActivePlan(): Promise<void> {
     () => deleteStudyPlan(plan.id),
     `Planejamento "${plan.name}" apagado.`,
   );
+}
+
+async function removeStudySession(session: StudySession): Promise<void> {
+  const confirmed = window.confirm(
+    `Apagar a sessão de ${sessionTopicName(session)} registrada em ${formatDate(session.date)}?`,
+  );
+  if (!confirmed) return;
+  await runAction(
+    () => deleteStudySession(session.id),
+    "Sessão apagada do histórico deste planejamento.",
+  );
+}
+
+async function removeSelectedSessions(): Promise<void> {
+  const sessionIds = selectedSessionIds.value.filter((id) =>
+    planning.value.sessions.some((session) => session.id === id),
+  );
+  if (sessionIds.length === 0) return;
+  const confirmed = window.confirm(
+    `Apagar ${sessionIds.length} sessão(ões) selecionada(s) desta semana deste planejamento?`,
+  );
+  if (!confirmed) return;
+  await runAction(
+    () => deleteStudySessions({ sessionIds }),
+    `${sessionIds.length} sessão(ões) apagada(s) deste planejamento.`,
+  );
+  if (!errorMessage.value) selectedSessionIds.value = [];
+}
+
+async function removeAllWeeklySessions(): Promise<void> {
+  const count = planning.value.sessions.length;
+  if (count === 0) return;
+  const confirmed = window.confirm(
+    `Apagar todas as ${count} sessões desta semana do planejamento "${planning.value.activePlan.name}"? Esta ação não pode ser desfeita.`,
+  );
+  if (!confirmed) return;
+  await runAction(
+    () => deleteStudySessions({ all: true }),
+    "Todas as sessões desta semana foram apagadas deste planejamento.",
+  );
+  if (!errorMessage.value) selectedSessionIds.value = [];
 }
 
 async function runAction(action: () => Promise<unknown>, success: string) {
@@ -1216,42 +1276,44 @@ onBeforeUnmount(() => {
             Ao finalizar, a duração medida será registrada em segundos exatos.
           </span>
           <div class="timer-controls">
-            <button
-              class="icon-action timer-focus-trigger"
-              type="button"
-              aria-label="Abrir cronômetro em tela cheia"
-              title="Abrir cronômetro em tela cheia"
-              @click="focusTimerOpen = true"
-            >
-              <span class="material-symbols-rounded" aria-hidden="true">
-                open_in_full
-              </span>
-            </button>
-            <button
-              class="secondary-button timer-control-button"
-              type="button"
-              @click="
-                activeStudyTimer.isRunning
-                  ? pauseStudyTimer()
-                  : resumeStudyTimer()
-              "
-            >
-              <span class="material-symbols-rounded" aria-hidden="true">
-                {{ activeStudyTimer.isRunning ? "pause" : "play_arrow" }}
-              </span>
-              {{ activeStudyTimer.isRunning ? "Pausar" : "Continuar" }}
-            </button>
-            <button
-              class="primary-button timer-control-button"
-              type="button"
-              :disabled="saving"
-              @click="finishTimedSession"
-            >
-              <span class="material-symbols-rounded" aria-hidden="true">
-                {{ saving ? "hourglass_top" : "stop" }}
-              </span>
-              {{ saving ? "Salvando..." : "Finalizar" }}
-            </button>
+            <div class="timer-action-group">
+              <button
+                class="icon-action timer-focus-trigger"
+                type="button"
+                aria-label="Abrir cronômetro em tela cheia"
+                title="Abrir cronômetro em tela cheia"
+                @click="focusTimerOpen = true"
+              >
+                <span class="material-symbols-rounded" aria-hidden="true">
+                  open_in_full
+                </span>
+              </button>
+              <button
+                class="secondary-button timer-control-button"
+                type="button"
+                @click="
+                  activeStudyTimer.isRunning
+                    ? pauseStudyTimer()
+                    : resumeStudyTimer()
+                "
+              >
+                <span class="material-symbols-rounded" aria-hidden="true">
+                  {{ activeStudyTimer.isRunning ? "pause" : "play_arrow" }}
+                </span>
+                {{ activeStudyTimer.isRunning ? "Pausar" : "Continuar" }}
+              </button>
+              <button
+                class="primary-button timer-control-button"
+                type="button"
+                :disabled="saving"
+                @click="finishTimedSession"
+              >
+                <span class="material-symbols-rounded" aria-hidden="true">
+                  {{ saving ? "hourglass_top" : "stop" }}
+                </span>
+                {{ saving ? "Salvando..." : "Finalizar" }}
+              </button>
+            </div>
           </div>
         </section>
 
@@ -1330,6 +1392,32 @@ onBeforeUnmount(() => {
                       · {{ statusLabel(planned.status) }}
                     </small>
                   </div>
+                  <RouterLink
+                    v-if="hasActiveQuestions(planned.topicId)"
+                    class="icon-action planned-topic-questions"
+                    :to="{
+                      name: 'questions',
+                      query: { topicId: planned.topicId },
+                    }"
+                    :aria-label="`Ver questões de ${planned.topicName}`"
+                    :title="`Ver questões de ${planned.topicName}`"
+                  >
+                    <span class="material-symbols-rounded" aria-hidden="true">
+                      quiz
+                    </span>
+                  </RouterLink>
+                  <button
+                    v-else
+                    class="icon-action planned-topic-questions"
+                    type="button"
+                    disabled
+                    :aria-label="`Sem questões para ${planned.topicName}`"
+                    :title="`Ainda não há questões ativas para ${planned.topicName}`"
+                  >
+                    <span class="material-symbols-rounded" aria-hidden="true">
+                      quiz
+                    </span>
+                  </button>
                   <div class="planned-topic-actions">
                     <label>
                       <span class="visually-hidden">
@@ -1400,58 +1488,62 @@ onBeforeUnmount(() => {
                         Iniciar cronômetro
                       </button>
                       <template v-else>
-                        <button
-                          class="icon-action timer-focus-trigger"
-                          type="button"
-                          aria-label="Abrir cronômetro em tela cheia"
-                          title="Abrir cronômetro em tela cheia"
-                          @click="focusTimerOpen = true"
-                        >
-                          <span
-                            class="material-symbols-rounded"
-                            aria-hidden="true"
+                        <div class="timer-action-group">
+                          <button
+                            class="icon-action timer-focus-trigger"
+                            type="button"
+                            aria-label="Abrir cronômetro em tela cheia"
+                            title="Abrir cronômetro em tela cheia"
+                            @click="focusTimerOpen = true"
                           >
-                            open_in_full
-                          </span>
-                        </button>
-                        <button
-                          class="secondary-button timer-control-button"
-                          type="button"
-                          :disabled="saving"
-                          @click="
-                            activeStudyTimer.isRunning
-                              ? pauseStudyTimer()
-                              : resumeStudyTimer()
-                          "
-                        >
-                          <span
-                            class="material-symbols-rounded"
-                            aria-hidden="true"
+                            <span
+                              class="material-symbols-rounded"
+                              aria-hidden="true"
+                            >
+                              open_in_full
+                            </span>
+                          </button>
+                          <button
+                            class="secondary-button timer-control-button"
+                            type="button"
+                            :disabled="saving"
+                            @click="
+                              activeStudyTimer.isRunning
+                                ? pauseStudyTimer()
+                                : resumeStudyTimer()
+                            "
                           >
+                            <span
+                              class="material-symbols-rounded"
+                              aria-hidden="true"
+                            >
+                              {{
+                                activeStudyTimer.isRunning
+                                  ? "pause"
+                                  : "play_arrow"
+                              }}
+                            </span>
                             {{
                               activeStudyTimer.isRunning
-                                ? "pause"
-                                : "play_arrow"
+                                ? "Pausar"
+                                : "Continuar"
                             }}
-                          </span>
-                          {{
-                            activeStudyTimer.isRunning ? "Pausar" : "Continuar"
-                          }}
-                        </button>
-                        <button
-                          class="primary-button timer-control-button"
-                          type="button"
-                          :disabled="saving"
-                          @click="finishTimedSession"
-                        >
-                          <span
-                            class="material-symbols-rounded"
-                            aria-hidden="true"
+                          </button>
+                          <button
+                            class="primary-button timer-control-button"
+                            type="button"
+                            :disabled="saving"
+                            @click="finishTimedSession"
                           >
-                            {{ saving ? "hourglass_top" : "stop" }}
-                          </span>
-                          {{ saving ? "Salvando..." : "Finalizar" }}
-                        </button>
+                            <span
+                              class="material-symbols-rounded"
+                              aria-hidden="true"
+                            >
+                              {{ saving ? "hourglass_top" : "stop" }}
+                            </span>
+                            {{ saving ? "Salvando..." : "Finalizar" }}
+                          </button>
+                        </div>
                       </template>
                     </div>
                     <details
@@ -1645,6 +1737,24 @@ onBeforeUnmount(() => {
                 O histórico é preservado quando o plano é recalculado.
               </p>
             </div>
+            <div class="session-bulk-actions">
+              <button
+                class="danger-button"
+                type="button"
+                :disabled="saving || selectedSessionIds.length === 0"
+                @click="removeSelectedSessions"
+              >
+                Apagar selecionadas ({{ selectedSessionIds.length }})
+              </button>
+              <button
+                class="danger-button"
+                type="button"
+                :disabled="saving || planning.sessions.length === 0"
+                @click="removeAllWeeklySessions"
+              >
+                Apagar todas
+              </button>
+            </div>
           </div>
           <ul v-if="planning.sessions.length" class="session-history">
             <li v-for="session in planning.sessions" :key="session.id">
@@ -1656,7 +1766,30 @@ onBeforeUnmount(() => {
                 </span>
                 <small v-if="session.notes">{{ session.notes }}</small>
               </div>
-              <strong>{{ formatSessionDuration(session) }}</strong>
+              <div class="session-history-actions">
+                <label class="session-selection">
+                  <input
+                    v-model="selectedSessionIds"
+                    type="checkbox"
+                    :value="session.id"
+                    :aria-label="`Selecionar sessão de ${sessionTopicName(session)} em ${formatDate(session.date)}`"
+                    :disabled="saving"
+                  />
+                </label>
+                <strong>{{ formatSessionDuration(session) }}</strong>
+                <button
+                  class="icon-action icon-action--danger session-delete-button"
+                  type="button"
+                  :aria-label="`Apagar sessão de ${sessionTopicName(session)} em ${formatDate(session.date)}`"
+                  title="Apagar sessão"
+                  :disabled="saving"
+                  @click="removeStudySession(session)"
+                >
+                  <span class="material-symbols-rounded" aria-hidden="true">
+                    delete
+                  </span>
+                </button>
+              </div>
             </li>
           </ul>
           <p v-else class="inline-empty">

@@ -21,6 +21,11 @@ async function mountPlanningView() {
     history: createMemoryHistory(),
     routes: [
       { path: "/planning", component: PlanningView },
+      {
+        path: "/questions",
+        name: "questions",
+        component: { render: () => null },
+      },
       { path: "/:pathMatch(.*)*", component: { render: () => null } },
     ],
   });
@@ -58,8 +63,22 @@ describe("PlanningView timer", () => {
   it("starts, pauses, resumes, and saves the measured study session", async () => {
     currentUser.value = { id: "user-1", email: "student@example.com" };
     vi.useFakeTimers();
+    vi.stubGlobal(
+      "confirm",
+      vi.fn(() => true),
+    );
     const today = new Date().toISOString().slice(0, 10);
     const weekday = (new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7;
+    let visibleSessions: {
+      id: string;
+      topicId: string;
+      date: string;
+      durationMinutes: number;
+      durationSeconds: number;
+      notes: string;
+      kind: string;
+      createdAt: string;
+    }[] = [];
     let registeredSession:
       | {
           kind: string;
@@ -68,6 +87,7 @@ describe("PlanningView timer", () => {
           date: string;
         }
       | undefined;
+    let topicHasQuestions = true;
     const session = {
       id: "session-1",
       topicId: "topic-1",
@@ -78,12 +98,42 @@ describe("PlanningView timer", () => {
       kind: "study",
       createdAt: new Date().toISOString(),
     };
+    const anotherSession = { ...session, id: "session-2" };
+    const thirdSession = { ...session, id: "session-3" };
 
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
+        if (
+          url.endsWith("/api/planning/sessions/session-1") &&
+          init?.method === "DELETE"
+        ) {
+          visibleSessions = visibleSessions.filter(
+            (item) => item.id !== "session-1",
+          );
+          return response({ deleted: true });
+        }
+        if (
+          url.endsWith("/api/planning/sessions") &&
+          init?.method === "DELETE"
+        ) {
+          const deletion = JSON.parse(String(init.body)) as
+            { all: true } | { sessionIds: string[] };
+          const previousCount = visibleSessions.length;
+          if ("all" in deletion) visibleSessions = [];
+          else {
+            visibleSessions = visibleSessions.filter(
+              (item) => !deletion.sessionIds.includes(item.id),
+            );
+          }
+          return response({
+            deletedCount: previousCount - visibleSessions.length,
+          });
+        }
         if (url.endsWith("/api/topics/topic-1/sessions")) {
+          visibleSessions = [session, anotherSession, thirdSession];
+          topicHasQuestions = false;
           registeredSession = JSON.parse(String(init?.body)) as {
             kind: string;
             durationMinutes?: number;
@@ -100,6 +150,11 @@ describe("PlanningView timer", () => {
               },
             },
             201,
+          );
+        }
+        if (url.endsWith("/api/questions")) {
+          return response(
+            topicHasQuestions ? [{ topicId: "topic-1", status: "active" }] : [],
           );
         }
         if (url.endsWith("/api/content")) {
@@ -179,12 +234,17 @@ describe("PlanningView timer", () => {
             weeklySessionCount: registeredSession ? 1 : 0,
             deadline: null,
           },
-          sessions: registeredSession ? [session] : [],
+          sessions: visibleSessions,
         });
       }),
     );
 
     const wrapper = await mountPlanningView();
+    expect(
+      wrapper
+        .get('a[aria-label="Ver questões de Modelagem relacional"]')
+        .attributes("href"),
+    ).toBe("/questions?topicId=topic-1");
     await wrapper.get("#target-date-trigger").trigger("click");
     expect(wrapper.find("#target-date-calendar").exists()).toBe(true);
     expect(wrapper.find('input[type="date"]').exists()).toBe(false);
@@ -207,6 +267,9 @@ describe("PlanningView timer", () => {
     await flushPromises();
 
     expect(wrapper.get(".timer-display").text()).toBe("00:01:05");
+    const timerActions = wrapper.get(".timer-action-group");
+    expect(timerActions.find(".timer-focus-trigger").exists()).toBe(true);
+    expect(timerActions.findAll(".timer-control-button")).toHaveLength(2);
     await wrapper.get(".timer-focus-trigger").trigger("click");
     expect(wrapper.get('[role="dialog"]').text()).toContain(
       "Modelagem relacional",
@@ -241,8 +304,31 @@ describe("PlanningView timer", () => {
     });
     expect(activeStudyTimer.topicId).toBeNull();
     expect(wrapper.text()).toContain("Sessão de 1 min 15 s registrada.");
+    expect(
+      wrapper
+        .get('button[aria-label="Sem questões para Modelagem relacional"]')
+        .attributes("disabled"),
+    ).toBeDefined();
     expect(wrapper.text()).toContain("Registrar manualmente");
     expect(wrapper.text()).toContain("Sessões desta semana");
+    await wrapper.get(".session-delete-button").trigger("click");
+    await flushPromises();
+    expect(vi.mocked(window.confirm)).toHaveBeenCalledOnce();
+    expect(wrapper.findAll(".session-history > li")).toHaveLength(2);
+    await wrapper.get('.session-history input[type="checkbox"]').setValue(true);
+    await wrapper.get(".session-bulk-actions .danger-button").trigger("click");
+    await flushPromises();
+    expect(vi.mocked(window.confirm)).toHaveBeenCalledTimes(2);
+    expect(wrapper.findAll(".session-history > li")).toHaveLength(1);
+    await wrapper
+      .get(".session-bulk-actions .danger-button:last-child")
+      .trigger("click");
+    await flushPromises();
+    expect(vi.mocked(window.confirm)).toHaveBeenCalledTimes(3);
+    expect(wrapper.text()).toContain(
+      "Todas as sessões desta semana foram apagadas deste planejamento.",
+    );
+    expect(wrapper.text()).toContain("Nenhuma sessão registrada nesta semana.");
   });
 
   it("creates a named plan and switches back to the previous one", async () => {
@@ -308,6 +394,7 @@ describe("PlanningView timer", () => {
         if (url.endsWith("/api/content")) {
           return response({ subjects, topics, materials: [] });
         }
+        if (url.endsWith("/api/questions")) return response([]);
         if (url.endsWith("/api/planning/plans") && init?.method === "POST") {
           const { name, topicIds } = JSON.parse(String(init.body)) as {
             name: string;

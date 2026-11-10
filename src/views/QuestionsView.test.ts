@@ -35,12 +35,15 @@ function response(data: unknown, status = 200): Response {
   } as Response;
 }
 
-async function mountQuestionsView() {
+async function mountQuestionsView(path = "/questions") {
   const router = createRouter({
     history: createMemoryHistory(),
-    routes: [{ path: "/questions", component: QuestionsView }],
+    routes: [
+      { path: "/questions", component: QuestionsView },
+      { path: "/:pathMatch(.*)*", component: { render: () => null } },
+    ],
   });
-  await router.push("/questions");
+  await router.push(path);
   await router.isReady();
   const wrapper = mount(RouterView, {
     global: { plugins: [router] },
@@ -118,5 +121,158 @@ describe("QuestionsView", () => {
     await card.get("button.secondary-button").trigger("click");
     expect(card.find(".question-feedback").exists()).toBe(false);
     expect(card.find(".question-option--eliminated").exists()).toBe(false);
+  });
+
+  it("imports the adapted UFC set without revealing answers before solving", async () => {
+    currentUser.value = { id: "user-1", email: "student@example.com" };
+    const importedQuestion = {
+      ...question,
+      statement: "Questão autoral sobre governança de TI.",
+      options: [
+        "Execução diária",
+        "Manutenção de computadores",
+        "Triagem de chamados",
+        "Direcionar prioridades e acompanhar resultados",
+        "Implementação de código",
+      ],
+      correctOption: 3,
+      source: {
+        ...question.source,
+        name: "Questões autorais — temas da prova UFC/FCPC 2025",
+        number: "Q3162160 — adaptação autoral, não transcrição",
+      },
+    };
+    let imported = false;
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.endsWith("/api/content")) {
+          return response({
+            subjects: [
+              {
+                id: "subject-1",
+                name: "Governança de TI e de Dados",
+                description: "",
+                notes: "",
+                position: 0,
+                archived: false,
+              },
+            ],
+            topics: [
+              {
+                id: "topic-1",
+                subjectId: "subject-1",
+                name: "Governança de TI: conceitos, alinhamento e avaliação",
+                description: "",
+                notes: "",
+                position: 0,
+                status: "not_started",
+                estimatedMinutes: 60,
+                reviewDueAt: null,
+              },
+            ],
+            materials: [],
+          });
+        }
+        if (url.endsWith("/api/questions/import-ufc-governance")) {
+          expect(init?.method).toBe("POST");
+          imported = true;
+          return response({
+            createdCount: 20,
+            existingCount: 10,
+            totalCount: 30,
+          });
+        }
+        return response(imported ? [importedQuestion] : []);
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const wrapper = await mountQuestionsView();
+    expect(wrapper.findAll(".question-card")).toHaveLength(0);
+    await wrapper.get("button.secondary-button").trigger("click");
+    await flushPromises();
+
+    expect(wrapper.findAll(".question-card")).toHaveLength(1);
+    expect(wrapper.text()).toContain(
+      "20 questões autorais adicionadas; 10 já estavam no banco.",
+    );
+    expect(wrapper.text()).toContain(
+      "As respostas aparecem somente depois de responder.",
+    );
+    expect(wrapper.find(".question-feedback").exists()).toBe(false);
+    expect(wrapper.find(".question-option--correct").exists()).toBe(false);
+    expect(
+      fetchMock.mock.calls.some(
+        ([url, init]) =>
+          String(url).endsWith("/api/questions/import-ufc-governance") &&
+          init?.method === "POST",
+      ),
+    ).toBe(true);
+  });
+
+  it("filters questions by the topic passed from the study plan", async () => {
+    currentUser.value = { id: "user-1", email: "student@example.com" };
+    const anotherQuestion = {
+      ...question,
+      id: "question-2",
+      topicId: "topic-2",
+      statement: "Questão de outro assunto.",
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).endsWith("/api/content")) {
+          return response({
+            subjects: [
+              {
+                id: "subject-1",
+                name: "Banco de Dados",
+                description: "",
+                notes: "",
+                position: 0,
+                archived: false,
+              },
+            ],
+            topics: [
+              {
+                id: "topic-1",
+                subjectId: "subject-1",
+                name: "Modelagem relacional",
+                description: "",
+                notes: "",
+                position: 0,
+                status: "not_started",
+                estimatedMinutes: null,
+                reviewDueAt: null,
+              },
+              {
+                id: "topic-2",
+                subjectId: "subject-1",
+                name: "SQL",
+                description: "",
+                notes: "",
+                position: 1,
+                status: "not_started",
+                estimatedMinutes: null,
+                reviewDueAt: null,
+              },
+            ],
+            materials: [],
+          });
+        }
+        return response([question, anotherQuestion]);
+      }),
+    );
+
+    const wrapper = await mountQuestionsView("/questions?topicId=topic-1");
+    expect(wrapper.findAll(".question-card")).toHaveLength(1);
+    expect(wrapper.find(".question-card").text()).toContain(question.statement);
+    expect(wrapper.find(".question-card").text()).not.toContain(
+      anotherQuestion.statement,
+    );
+    const filterButtons = wrapper.findAll('[role="combobox"]');
+    expect(filterButtons[0]?.text()).toContain("Banco de Dados");
+    expect(filterButtons[1]?.text()).toContain("Modelagem relacional");
   });
 });

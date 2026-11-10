@@ -46,6 +46,16 @@ export function getQuestions(): Promise<StudyQuestion[]> {
   return requestApi("/api/questions");
 }
 
+export function importUfcGovernanceQuestions(): Promise<{
+  createdCount: number;
+  existingCount: number;
+  totalCount: number;
+}> {
+  return requestApi("/api/questions/import-ufc-governance", {
+    method: "POST",
+  });
+}
+
 export function createQuestion(
   input: StudyQuestionInput,
 ): Promise<StudyQuestion> {
