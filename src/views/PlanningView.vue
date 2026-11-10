@@ -11,8 +11,15 @@ import { RouterLink, useRouter } from "vue-router";
 import { currentUser, logout } from "../auth";
 import AppSelect from "../components/AppSelect.vue";
 import ConfirmDialog from "../components/ConfirmDialog.vue";
+import MaterialPreview from "../components/MaterialPreview.vue";
 import { requestConfirmation } from "../confirm-dialog";
-import { getContent, type ContentSnapshot, type Topic } from "../content";
+import {
+  getContent,
+  type ContentSnapshot,
+  type Material,
+  type Topic,
+  updateTopic,
+} from "../content";
 import {
   activateStudyPlan,
   createStudyPlan,
@@ -313,6 +320,25 @@ function clearTargetDate(): void {
 
 function getTopic(topicId: string): Topic | undefined {
   return content.value.topics.find((topic) => topic.id === topicId);
+}
+
+function materialsForTopic(topicId: string): Material[] {
+  return content.value.materials.filter(
+    (material) => material.topicId === topicId,
+  );
+}
+
+function materialTypeLabel(type: Material["type"]): string {
+  const labels: Record<Material["type"], string> = {
+    video: "Videoaula",
+    law: "Lei ou norma",
+    book: "Livro",
+    article: "Artigo",
+    questions: "Questões",
+    document: "Documento",
+    other: "Outro",
+  };
+  return labels[type];
 }
 
 function hasActiveQuestions(topicId: string): boolean {
@@ -637,6 +663,17 @@ async function resetTopic(topicId: string) {
   );
 }
 
+async function completePlannedTopic(
+  topicId: string,
+  topicName: string,
+  plannedDate: string,
+) {
+  await runAction(async () => {
+    await movePlannedTopic(topicId, plannedDate);
+    await updateTopic(topicId, { status: "studied" });
+  }, `Tópico "${topicName}" concluído. A revisão será lembrada em 7 dias.`);
+}
+
 async function recordStudySession(topic: Topic, kind: "study" | "review") {
   if (timedTopicId.value !== null) {
     errorMessage.value =
@@ -667,16 +704,23 @@ async function recordStudySession(topic: Topic, kind: "study" | "review") {
   );
 }
 
-function beginTimedSession(topicId: string) {
+async function beginTimedSession(topicId: string) {
+  if (timedTopicId.value !== null || saving.value) return;
   errorMessage.value = "";
   successMessage.value = "";
+  saving.value = true;
   try {
+    await updateTopic(topicId, { status: "in_progress" });
     startStudyTimer(topicId);
+    if (!(await loadPlanning())) return;
+    successMessage.value = "Cronômetro iniciado; tópico em andamento.";
   } catch (error) {
     errorMessage.value =
       error instanceof Error
         ? error.message
         : "Não foi possível iniciar o cronômetro.";
+  } finally {
+    saving.value = false;
   }
 }
 
@@ -1397,6 +1441,7 @@ function handleStudySessionUpdated(): void {
                   v-for="planned in day.topics"
                   :key="planned.topicId"
                   class="planned-topic"
+                  :class="`planned-topic--${planned.status}`"
                 >
                   <div class="planned-topic-copy">
                     <strong>{{ planned.topicName }}</strong>
@@ -1460,7 +1505,7 @@ function handleStudySessionUpdated(): void {
                       </span>
                       <AppSelect
                         :model-value="day.date"
-                        :disabled="saving"
+                        :disabled="saving || planned.status === 'studied'"
                         :options="
                           planning.plan.days
                             .filter(
@@ -1480,11 +1525,46 @@ function handleStudySessionUpdated(): void {
                       v-if="planned.manuallyScheduled"
                       class="text-button"
                       type="button"
-                      :disabled="saving"
+                      :disabled="saving || planned.status === 'studied'"
                       @click="resetTopic(planned.topicId)"
                     >
                       Automático
                     </button>
+                    <button
+                      v-if="
+                        planned.status !== 'studied' &&
+                        planned.status !== 'review_pending'
+                      "
+                      class="planned-topic-complete"
+                      type="button"
+                      :disabled="saving || timedTopicId === planned.topicId"
+                      :title="
+                        timedTopicId === planned.topicId
+                          ? 'Finalize o cronômetro antes de concluir o tópico.'
+                          : 'Marcar tópico como estudado'
+                      "
+                      @click="
+                        completePlannedTopic(
+                          planned.topicId,
+                          planned.topicName,
+                          day.date,
+                        )
+                      "
+                    >
+                      <span class="material-symbols-rounded" aria-hidden="true">
+                        check_circle
+                      </span>
+                      Concluir tópico
+                    </button>
+                    <span
+                      v-else-if="planned.status === 'studied'"
+                      class="planned-topic-completed"
+                    >
+                      <span class="material-symbols-rounded" aria-hidden="true">
+                        check_circle
+                      </span>
+                      Concluído
+                    </span>
                     <div class="timer-controls">
                       <output
                         v-if="timedTopicId === planned.topicId"
@@ -1626,6 +1706,57 @@ function handleStudySessionUpdated(): void {
                       </form>
                     </details>
                   </div>
+                  <details
+                    v-if="materialsForTopic(planned.topicId).length"
+                    class="planned-topic-materials"
+                  >
+                    <summary>
+                      <span class="material-symbols-rounded" aria-hidden="true">
+                        attach_file
+                      </span>
+                      Materiais ({{
+                        materialsForTopic(planned.topicId).length
+                      }})
+                    </summary>
+                    <ul>
+                      <li
+                        v-for="material in materialsForTopic(planned.topicId)"
+                        :key="material.id"
+                      >
+                        <span class="planned-topic-material-copy">
+                          <MaterialPreview
+                            :material="material"
+                            size="compact"
+                          />
+                          <span>{{ materialTypeLabel(material.type) }}</span>
+                          <a
+                            v-if="material.url"
+                            :href="material.url"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            {{ material.title }}
+                            <span
+                              class="material-symbols-rounded"
+                              aria-hidden="true"
+                            >
+                              open_in_new
+                            </span>
+                            <span class="visually-hidden"
+                              >(abre em nova aba)</span
+                            >
+                          </a>
+                          <strong v-else>{{ material.title }}</strong>
+                          <small v-if="material.professor">
+                            Professor: {{ material.professor }}
+                          </small>
+                          <small v-if="material.text">{{
+                            material.text
+                          }}</small>
+                        </span>
+                      </li>
+                    </ul>
+                  </details>
                 </li>
               </ul>
               <p v-else class="inline-empty">
@@ -1664,6 +1795,50 @@ function handleStudySessionUpdated(): void {
                     </template>
                   </small>
                 </div>
+                <details
+                  v-if="materialsForTopic(topic.topicId).length"
+                  class="planned-topic-materials"
+                >
+                  <summary>
+                    <span class="material-symbols-rounded" aria-hidden="true">
+                      attach_file
+                    </span>
+                    Materiais ({{ materialsForTopic(topic.topicId).length }})
+                  </summary>
+                  <ul>
+                    <li
+                      v-for="material in materialsForTopic(topic.topicId)"
+                      :key="material.id"
+                    >
+                      <span class="planned-topic-material-copy">
+                        <MaterialPreview :material="material" size="compact" />
+                        <span>{{ materialTypeLabel(material.type) }}</span>
+                        <a
+                          v-if="material.url"
+                          :href="material.url"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {{ material.title }}
+                          <span
+                            class="material-symbols-rounded"
+                            aria-hidden="true"
+                          >
+                            open_in_new
+                          </span>
+                          <span class="visually-hidden"
+                            >(abre em nova aba)</span
+                          >
+                        </a>
+                        <strong v-else>{{ material.title }}</strong>
+                        <small v-if="material.professor">
+                          Professor: {{ material.professor }}
+                        </small>
+                        <small v-if="material.text">{{ material.text }}</small>
+                      </span>
+                    </li>
+                  </ul>
+                </details>
               </li>
             </ul>
           </section>
@@ -1812,7 +1987,12 @@ function handleStudySessionUpdated(): void {
                     :disabled="saving"
                   />
                 </label>
-                <strong>{{ formatSessionDuration(session) }}</strong>
+                <strong class="session-duration">
+                  <span class="material-symbols-rounded" aria-hidden="true">
+                    timer
+                  </span>
+                  {{ formatSessionDuration(session) }}
+                </strong>
                 <button
                   class="icon-action icon-action--danger session-delete-button"
                   type="button"

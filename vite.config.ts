@@ -24,6 +24,7 @@ function pwaServiceWorker(): Plugin {
         "icon-192.png",
         "icon-512.png",
         "qconcursos-icon.png",
+        "brazil-coat-of-arms.svg",
       ];
       const precacheFiles = [
         "index.html",

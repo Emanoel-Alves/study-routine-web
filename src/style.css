@@ -23,6 +23,7 @@
   --color-primary-soft: #e4f2ef;
   --color-border: #dce7e4;
   --color-surface: #fff;
+  --color-surface-soft: #f7faf9;
   --color-canvas: #f5f8f7;
   --color-danger: #a63d37;
 }
@@ -218,6 +219,47 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+.planned-topic-complete,
+.planned-topic-completed {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border: 1px solid #c9e8d8;
+  border-radius: 8px;
+  background: #edf8f1;
+  color: #216b4b;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.planned-topic-complete {
+  cursor: pointer;
+}
+
+.planned-topic-complete:hover:not(:disabled) {
+  background: #dff1e7;
+}
+
+.planned-topic-complete:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.planned-topic-complete .material-symbols-rounded,
+.planned-topic-completed .material-symbols-rounded {
+  font-size: 18px;
+}
+
+.planned-topic-completed {
+  border-color: transparent;
+  background: transparent;
 }
 
 .date-picker-heading {
@@ -1133,7 +1175,7 @@ h1 {
   padding: 11px 12px;
   border: 1px solid transparent;
   border-radius: 9px;
-  background: #f7faf9;
+  background: var(--color-surface-soft);
   color: var(--color-ink);
   cursor: pointer;
   font: inherit;
@@ -1317,7 +1359,7 @@ h1 {
   padding: 12px;
   border: 1px solid var(--color-border);
   border-radius: 11px;
-  background: #fff;
+  background: var(--color-surface-soft);
 }
 
 .topic-name {
@@ -1343,18 +1385,30 @@ h1 {
   line-height: 1.45;
 }
 
-.topic-status .app-select {
-  max-width: 180px;
-}
-
-.topic-status .app-select-trigger {
-  min-height: 36px;
-  padding: 6px 8px;
+.topic-status-label {
+  justify-self: start;
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: #f0f4f3;
+  color: var(--color-muted);
   font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
 }
 
-.topic-status .app-select-chevron {
-  font-size: 18px;
+.topic-status-label--in_progress {
+  background: #fff5df;
+  color: #765719;
+}
+
+.topic-status-label--studied {
+  background: #edf8f1;
+  color: #216b4b;
+}
+
+.topic-status-label--review_pending {
+  background: #fff0e8;
+  color: #98512b;
 }
 
 .topic-actions {
@@ -1369,17 +1423,42 @@ h1 {
   display: grid;
   grid-column: 1 / -1;
   gap: 6px;
-  padding-top: 10px;
-  border-top: 1px solid var(--color-border);
+  padding: 7px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  background: var(--color-surface);
 }
 
 .topic-linked-materials-label {
-  display: inline-flex;
+  display: flex;
+  width: 100%;
   align-items: center;
   gap: 5px;
+  padding: 3px 2px;
   color: var(--color-muted);
   font-size: 11px;
   font-weight: 650;
+  cursor: pointer;
+  list-style: none;
+}
+
+.topic-linked-materials-label::-webkit-details-marker,
+.planned-topic-materials > summary::-webkit-details-marker {
+  display: none;
+}
+
+.topic-linked-materials-label::after,
+.planned-topic-materials > summary::after {
+  content: "expand_more";
+  margin-left: auto;
+  font-family: "Material Symbols Rounded";
+  font-size: 17px;
+  font-weight: 400;
+}
+
+.topic-linked-materials[open] .topic-linked-materials-label::after,
+.planned-topic-materials[open] > summary::after {
+  content: "expand_less";
 }
 
 .topic-linked-materials-label .material-symbols-rounded {
@@ -1388,19 +1467,65 @@ h1 {
 }
 
 .topic-linked-materials ul {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 14px;
+  display: grid;
+  gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.topic-linked-materials li {
+.topic-linked-materials li,
+.planned-topic-materials li {
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-primary-soft);
   color: var(--color-primary-dark);
   font-size: 12px;
   font-weight: 650;
   overflow-wrap: anywhere;
+}
+
+.topic-linked-material-copy {
+  display: grid;
+  justify-items: start;
+  gap: 3px;
+}
+
+.topic-linked-material-copy,
+.planned-topic-material-copy {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 9px;
+}
+
+.topic-linked-material-copy > :not(.material-preview),
+.planned-topic-material-copy > :not(.material-preview) {
+  grid-column: 2;
+}
+
+.topic-linked-material-copy > .material-preview,
+.planned-topic-material-copy > .material-preview {
+  grid-column: 1;
+  grid-row: 1 / span 5;
+}
+
+.topic-linked-material-kind {
+  color: var(--color-muted);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.topic-linked-material-copy strong,
+.topic-linked-material-copy small {
+  white-space: pre-wrap;
+}
+
+.topic-linked-material-copy small {
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 400;
 }
 
 .topic-linked-materials a {
@@ -1408,6 +1533,12 @@ h1 {
   align-items: center;
   gap: 4px;
   color: inherit;
+}
+
+.topic-linked-materials a.material-preview,
+.planned-topic-material-copy a.material-preview {
+  display: inline-grid;
+  color: var(--color-primary-dark);
 }
 
 .topic-linked-materials a .material-symbols-rounded {
@@ -1518,7 +1649,7 @@ h1 {
   padding: 11px 12px;
   border: 1px solid var(--color-border);
   border-radius: 9px;
-  background: #fbfdfc;
+  background: var(--color-primary-soft);
 }
 
 .topic-material-item > div:first-child {
@@ -1568,7 +1699,7 @@ h1 {
   padding: 14px;
   border: 1px solid var(--color-border);
   border-radius: 11px;
-  background: #fff;
+  background: var(--color-primary-soft);
 }
 
 .material-copy {
@@ -1596,6 +1727,161 @@ h1 {
   line-height: 1.55;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.subject-media-section {
+  margin-top: 24px;
+}
+
+.subject-media-section > h3 {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: 15px;
+}
+
+.video-lesson-list {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.video-lesson-card {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 14px;
+  padding: 13px;
+  border: 1px solid var(--color-border);
+  border-radius: 11px;
+  background: var(--color-primary-soft);
+}
+
+.material-preview {
+  position: relative;
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 7px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary-dark);
+  text-decoration: none;
+}
+
+.material-preview--compact {
+  width: 82px;
+  aspect-ratio: 16 / 9;
+}
+
+.material-preview--large {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+}
+
+.material-preview--document {
+  width: 38px;
+  height: 38px;
+  aspect-ratio: auto;
+}
+
+.material-preview--law {
+  width: 52px;
+  height: 52px;
+  aspect-ratio: auto;
+  background: transparent;
+}
+
+.material-preview-emblem,
+.material-preview-emblem img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.material-preview-emblem img {
+  object-fit: contain;
+}
+
+.material-preview--large .material-preview-frame {
+  position: absolute;
+  inset: 0;
+}
+
+.material-preview-frame {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  overflow: hidden;
+}
+
+.material-preview-frame img {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.material-preview-frame .material-symbols-rounded {
+  font-size: 38px;
+}
+
+.material-preview--compact .material-preview-frame .material-symbols-rounded {
+  font-size: 24px;
+}
+
+.material-preview--document .material-symbols-rounded {
+  font-size: 21px;
+}
+
+.video-lesson-copy {
+  min-width: 0;
+}
+
+.video-lesson-copy h4 {
+  margin: 5px 0;
+  color: var(--color-ink);
+  font-size: 14px;
+}
+
+.video-lesson-copy p {
+  margin: 0 0 7px;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.video-lesson-copy .video-lesson-professor {
+  color: var(--color-ink);
+  font-weight: 650;
+}
+
+.video-lesson-open-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--color-primary-dark);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.video-lesson-open-link .material-symbols-rounded {
+  font-size: 18px;
+}
+
+.law-material-card {
+  justify-content: flex-start;
+}
+
+.law-material-card .material-copy {
+  flex: 1 1 auto;
 }
 
 .content-empty {
@@ -2037,9 +2323,22 @@ h1 {
   .content-page-heading,
   .detail-heading,
   .panel-section-heading,
-  .material-card {
+  .material-card,
+  .video-lesson-card {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .video-lesson-card {
+    display: flex;
+  }
+
+  .video-lesson-card > .material-preview {
+    width: 100%;
+  }
+
+  .video-lesson-card .material-actions {
+    align-self: flex-end;
   }
 
   .content-page-heading {
@@ -2072,11 +2371,6 @@ h1 {
 
   .topic-card {
     grid-template-columns: 1fr;
-  }
-
-  .topic-status .app-select {
-    max-width: none;
-    width: 100%;
   }
 
   .topic-actions {
@@ -2438,7 +2732,7 @@ h1 {
   padding: 12px;
   border: 1px solid var(--color-border);
   border-radius: 10px;
-  background: #fbfdfc;
+  background: var(--color-primary-soft);
 }
 
 .planned-topic {
@@ -2446,6 +2740,23 @@ h1 {
   grid-template-columns: minmax(0, 1fr) 40px 40px auto;
   align-items: center;
   justify-content: stretch;
+  background: var(--color-surface-soft);
+}
+
+.planned-topic--not_started {
+  border-inline: 3px solid #aeb9b7;
+}
+
+.planned-topic--in_progress {
+  border-inline: 3px solid #2874a6;
+}
+
+.planned-topic--studied {
+  border-inline: 3px solid #216b4b;
+}
+
+.planned-topic--review_pending {
+  border-inline: 3px solid #d9a51f;
 }
 
 .planned-topic-copy,
@@ -2918,11 +3229,75 @@ h1 {
 }
 
 .planned-topic-actions summary,
-.review-card summary {
+.review-card summary,
+.planned-topic-materials > summary {
   color: var(--color-primary-dark);
   cursor: pointer;
   font-size: 12px;
   font-weight: 650;
+}
+
+.planned-topic-materials {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 8px;
+  align-self: stretch;
+  padding: 7px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  background: var(--color-surface);
+}
+
+.planned-topic-materials > summary {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 2px;
+  list-style: none;
+}
+
+.planned-topic-materials > summary .material-symbols-rounded {
+  font-size: 16px;
+}
+
+.planned-topic-materials ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.planned-topic-material-copy {
+  display: grid;
+  justify-items: start;
+  gap: 3px;
+}
+
+.planned-topic-material-copy > span,
+.planned-topic-material-copy small {
+  color: var(--color-muted);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.planned-topic-material-copy small {
+  font-size: 11px;
+  text-transform: none;
+  white-space: pre-wrap;
+}
+
+.planned-topic-material-copy a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-primary-dark);
+  font-weight: 650;
+}
+
+.planned-topic-material-copy a .material-symbols-rounded {
+  font-size: 15px;
 }
 
 .session-form {
@@ -2991,11 +3366,22 @@ h1 {
   gap: 8px;
 }
 
-.session-history-actions {
+.session-history > li > .session-history-actions {
   display: flex;
   flex: 0 0 auto;
+  flex-direction: row;
   align-items: center;
   gap: 10px;
+}
+
+.session-duration {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.session-duration .material-symbols-rounded {
+  font-size: 17px;
 }
 
 .session-bulk-actions {
@@ -3492,6 +3878,11 @@ h1 {
   .review-card,
   .session-history > li {
     flex-direction: column;
+  }
+
+  .session-history > li > .session-history-actions {
+    flex-direction: row;
+    align-self: flex-end;
   }
 
   .planned-topic {

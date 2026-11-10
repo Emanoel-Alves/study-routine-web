@@ -101,6 +101,9 @@ describe("PlanningView timer", () => {
         }
       | undefined;
     let topicHasQuestions = true;
+    let topicStatus = "not_started";
+    let plannedOverrideDate: string | null = null;
+    const topicStatusChanges: string[] = [];
     const session = {
       id: "session-1",
       topicId: "topic-1",
@@ -118,6 +121,19 @@ describe("PlanningView timer", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
+        if (
+          url.endsWith("/api/planning/items/topic-1") &&
+          init?.method === "PATCH"
+        ) {
+          plannedOverrideDate = (
+            JSON.parse(String(init.body)) as { plannedDate: string }
+          ).plannedDate;
+          return response({
+            topicId: "topic-1",
+            plannedDate: plannedOverrideDate,
+            weekStart: today,
+          });
+        }
         if (
           url.endsWith("/api/planning/sessions/session-1") &&
           init?.method === "DELETE"
@@ -147,6 +163,7 @@ describe("PlanningView timer", () => {
         if (url.endsWith("/api/topics/topic-1/sessions")) {
           visibleSessions = [session, anotherSession, thirdSession];
           topicHasQuestions = false;
+          topicStatus = "in_progress";
           registeredSession = JSON.parse(String(init?.body)) as {
             kind: string;
             durationMinutes?: number;
@@ -164,6 +181,18 @@ describe("PlanningView timer", () => {
             },
             201,
           );
+        }
+        if (url.endsWith("/api/topics/topic-1") && init?.method === "PATCH") {
+          const update = JSON.parse(String(init.body)) as {
+            status: string;
+          };
+          topicStatus = update.status;
+          topicStatusChanges.push(update.status);
+          return response({
+            id: "topic-1",
+            status: topicStatus,
+            reviewDueAt: null,
+          });
         }
         if (url.endsWith("/api/questions")) {
           return response(
@@ -190,12 +219,46 @@ describe("PlanningView timer", () => {
                 description: "",
                 notes: "",
                 position: 0,
-                status: registeredSession ? "in_progress" : "not_started",
+                status: topicStatus,
                 estimatedMinutes: 45,
                 reviewDueAt: null,
               },
             ],
-            materials: [],
+            materials: [
+              {
+                id: "material-1",
+                subjectId: "subject-1",
+                topicId: "topic-1",
+                title: "Aula de modelagem",
+                type: "video",
+                url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                text: "Exemplo prático.",
+                professor: "Prof. Dados",
+                thumbnailUrl: "",
+              },
+              {
+                id: "material-2",
+                subjectId: "subject-1",
+                topicId: "topic-1",
+                title: "Resumo em PDF",
+                type: "document",
+                url: "https://example.com/resumo.pdf",
+                text: "",
+                professor: "",
+                thumbnailUrl: "",
+              },
+              {
+                id: "material-3",
+                subjectId: "subject-1",
+                topicId: "topic-1",
+                title: "Constituição Federal",
+                type: "law",
+                url: "https://www.planalto.gov.br/",
+                text: "",
+                professor: "",
+                thumbnailUrl: "",
+              },
+            ],
           });
         }
         return response({
@@ -229,7 +292,7 @@ describe("PlanningView timer", () => {
                     subjectId: "subject-1",
                     subjectName: "Banco de Dados",
                     topicName: "Modelagem relacional",
-                    status: registeredSession ? "in_progress" : "not_started",
+                    status: topicStatus,
                     estimatedMinutes: 45,
                     usesDefaultEstimate: false,
                     manuallyScheduled: false,
@@ -253,6 +316,25 @@ describe("PlanningView timer", () => {
     );
 
     const wrapper = await mountPlanningView();
+    const topicMaterials = wrapper.get(".planned-topic-materials");
+    expect((topicMaterials.element as HTMLDetailsElement).open).toBe(false);
+    expect(topicMaterials.text()).toContain("Materiais (3)");
+    await topicMaterials.get("summary").trigger("click");
+    expect(topicMaterials.text()).toContain("Aula de modelagem");
+    expect(topicMaterials.text()).toContain("Prof. Dados");
+    expect(topicMaterials.text()).toContain("Resumo em PDF");
+    expect(topicMaterials.get(".material-preview--document").text()).toBe(
+      "description",
+    );
+    expect(
+      topicMaterials.get(".material-preview--law img").attributes("src"),
+    ).toBe("/brazil-coat-of-arms.svg");
+    expect(
+      topicMaterials.get(".material-preview--video img").attributes("src"),
+    ).toBe("https://img.youtube.com/vi/dQw4w9WgXcQ/0.jpg");
+    expect(topicMaterials.get("a").attributes("href")).toBe(
+      "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    );
     expect(
       wrapper
         .get('a[aria-label="Ver questões de Modelagem relacional"]')
@@ -286,6 +368,11 @@ describe("PlanningView timer", () => {
     expect(wrapper.get(".timer-start").classes()).toContain("secondary-button");
     expect(wrapper.get(".timer-start").classes()).not.toContain("text-button");
     await wrapper.get(".timer-start").trigger("click");
+    await flushPromises();
+    expect(topicStatusChanges).toEqual(["in_progress"]);
+    expect(wrapper.text()).toContain(
+      "Cronômetro iniciado; tópico em andamento.",
+    );
     expect(wrapper.text()).not.toContain("Registrar manualmente");
     expect(wrapper.find(".active-study-timer").exists()).toBe(true);
     await vi.advanceTimersByTimeAsync(65_000);
@@ -347,6 +434,30 @@ describe("PlanningView timer", () => {
     ).toBeDefined();
     expect(wrapper.text()).toContain("Registrar manualmente");
     expect(wrapper.text()).toContain("Sessões desta semana");
+    const sessionDuration = wrapper.get(".session-duration");
+    expect(sessionDuration.text()).toContain("1 min 15 s");
+    expect(sessionDuration.get(".material-symbols-rounded").text()).toBe(
+      "timer",
+    );
+    expect(wrapper.get(".planned-topic-complete").text()).toContain(
+      "Concluir tópico",
+    );
+    await wrapper.get(".planned-topic-complete").trigger("click");
+    await flushPromises();
+    expect(topicStatusChanges).toEqual(["in_progress", "studied"]);
+    expect(plannedOverrideDate).toBe(today);
+    expect(wrapper.text()).toContain(
+      'Tópico "Modelagem relacional" concluído. A revisão será lembrada em 7 dias.',
+    );
+    expect(wrapper.get(".planned-topic").classes()).toContain(
+      "planned-topic--studied",
+    );
+    expect(wrapper.get(".planned-topic").text()).toContain(
+      "Modelagem relacional",
+    );
+    expect(wrapper.get(".planned-topic-completed").text()).toContain(
+      "Concluído",
+    );
     await wrapper.get(".session-delete-button").trigger("click");
     await flushPromises();
     await confirmDialog(wrapper);

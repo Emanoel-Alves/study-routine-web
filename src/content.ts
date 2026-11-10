@@ -4,7 +4,7 @@ export type StudyStatus =
   "not_started" | "in_progress" | "studied" | "review_pending";
 
 export type MaterialType =
-  "video" | "book" | "article" | "questions" | "document" | "other";
+  "video" | "law" | "book" | "article" | "questions" | "document" | "other";
 
 export interface Subject {
   id: string;
@@ -35,6 +35,8 @@ export interface Material {
   type: MaterialType;
   url: string;
   text: string;
+  professor?: string;
+  thumbnailUrl?: string;
 }
 
 export interface ContentSnapshot {
@@ -61,6 +63,8 @@ export interface MaterialInput {
   type: MaterialType;
   url: string;
   text: string;
+  professor: string;
+  thumbnailUrl: string;
 }
 
 function jsonBody(value: unknown): string {

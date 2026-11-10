@@ -131,12 +131,50 @@ describe("ContentView", () => {
               reviewDueAt: null,
             },
           ],
-          materials: [],
+          materials: [
+            {
+              id: "material-1",
+              subjectId: "subject-1",
+              topicId: "topic-1",
+              title: "Aula de direitos fundamentais",
+              type: "video",
+              url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+              text: "Revisão dos direitos fundamentais.",
+              professor: "Professora Ana",
+              thumbnailUrl: "",
+            },
+            {
+              id: "material-2",
+              subjectId: "subject-1",
+              topicId: "topic-1",
+              title: "Resumo em PDF",
+              type: "document",
+              url: "https://example.com/resumo.pdf",
+              text: "",
+              professor: "",
+              thumbnailUrl: "",
+            },
+          ],
         }),
       ),
     );
 
     const wrapper = await mountContentView();
+    const topicMaterials = wrapper.get(".topic-linked-materials");
+    expect((topicMaterials.element as HTMLDetailsElement).open).toBe(false);
+    expect(topicMaterials.get("summary").text()).toContain(
+      "Materiais do tópico (2)",
+    );
+    await topicMaterials.get("summary").trigger("click");
+    expect(topicMaterials.text()).toContain("Aula de direitos fundamentais");
+    expect(topicMaterials.text()).toContain("Professora Ana");
+    expect(topicMaterials.text()).toContain("Resumo em PDF");
+    expect(topicMaterials.get(".material-preview--document").text()).toBe(
+      "description",
+    );
+    expect(topicMaterials.get("a").attributes("href")).toBe(
+      "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    );
 
     const subjectQconcursosLink = wrapper.get(
       'a[aria-label="Buscar Direito Constitucional em concursos no QConcursos"]',
@@ -206,6 +244,8 @@ describe("ContentView", () => {
       type: string;
       url: string;
       text: string;
+      professor: string;
+      thumbnailUrl: string;
     }[] = [];
     const topic = {
       id: "topic-1",
@@ -234,6 +274,8 @@ describe("ContentView", () => {
       type: string;
       url: string;
       text: string;
+      professor: string;
+      thumbnailUrl: string;
     }[] = [];
 
     vi.stubGlobal(
@@ -278,6 +320,8 @@ describe("ContentView", () => {
         type: "other",
         url: "https://example.com/direitos",
         text: "",
+        professor: "",
+        thumbnailUrl: "",
       },
     ]);
     expect(wrapper.get(".topic-materials").text()).toContain(
@@ -298,6 +342,214 @@ describe("ContentView", () => {
     expect(
       wrapper.get('button[aria-label="Remover Aula sobre direitos"]').text(),
     ).toBe("delete");
+  });
+
+  it("resets a completed topic to not started from its topic card", async () => {
+    currentUser.value = { id: "user-reset", email: "student@example.com" };
+    let topicStatus = "studied";
+    let topicReviewDueAt: string | null = "2026-11-17T00:00:00.000Z";
+    let updatedStatus: string | undefined;
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.method === "PATCH") {
+          const update = JSON.parse(String(init.body)) as {
+            status: string;
+          };
+          updatedStatus = update.status;
+          topicStatus = update.status;
+          topicReviewDueAt = null;
+          return response({
+            id: "topic-1",
+            subjectId: "subject-1",
+            name: "Direitos fundamentais",
+            status: topicStatus,
+            reviewDueAt: topicReviewDueAt,
+          });
+        }
+        return response({
+          subjects: [
+            {
+              id: "subject-1",
+              name: "Direito Constitucional",
+              description: "",
+              notes: "",
+              position: 0,
+              archived: false,
+            },
+          ],
+          topics: [
+            {
+              id: "topic-1",
+              subjectId: "subject-1",
+              name: "Direitos fundamentais",
+              description: "",
+              notes: "",
+              position: 0,
+              status: topicStatus,
+              estimatedMinutes: null,
+              reviewDueAt: topicReviewDueAt,
+            },
+          ],
+          materials: [],
+        });
+      }),
+    );
+
+    const wrapper = await mountContentView();
+    const resetButton = wrapper.get(
+      'button[aria-label="Redefinir Direitos fundamentais para Não iniciado"]',
+    );
+    expect(resetButton.text()).toBe("restart_alt");
+    await resetButton.trigger("click");
+    await flushPromises();
+
+    expect(updatedStatus).toBe("not_started");
+    expect(wrapper.get(".topic-status-label").text()).toBe("Não iniciado");
+    expect(
+      wrapper
+        .find(
+          'button[aria-label="Redefinir Direitos fundamentais para Não iniciado"]',
+        )
+        .exists(),
+    ).toBe(false);
+    expect(wrapper.text()).toContain(
+      'Status de "Direitos fundamentais" redefinido para Não iniciado.',
+    );
+  });
+
+  it("adds video lessons and laws to their dedicated lists", async () => {
+    currentUser.value = { id: "user-6", email: "student@example.com" };
+    const subject = {
+      id: "subject-1",
+      name: "Direito Constitucional",
+      description: "",
+      notes: "",
+      position: 0,
+      archived: false,
+    };
+    const materials: {
+      id: string;
+      subjectId: string;
+      topicId: string | null;
+      title: string;
+      type: string;
+      url: string;
+      text: string;
+      professor: string;
+      thumbnailUrl: string;
+    }[] = [];
+    const materialInputs: Omit<
+      (typeof materials)[number],
+      "id" | "subjectId"
+    >[] = [];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (
+          url.endsWith("/api/subjects/subject-1/materials") &&
+          init?.method === "POST"
+        ) {
+          const body = JSON.parse(String(init.body)) as Omit<
+            (typeof materials)[number],
+            "id" | "subjectId"
+          >;
+          materialInputs.push(body);
+          const savedMaterial = {
+            id: `material-${materials.length + 1}`,
+            subjectId: subject.id,
+            ...body,
+          };
+          materials.push(savedMaterial);
+          return response(savedMaterial, 201);
+        }
+        return response({ subjects: [subject], topics: [], materials });
+      }),
+    );
+
+    const wrapper = await mountContentView();
+    const addMaterialButton = wrapper.get(
+      ".material-panel .panel-section-heading .primary-button",
+    );
+
+    await addMaterialButton.trigger("click");
+    let form = wrapper.get(".material-panel form.content-form");
+    await form.get('input[maxlength="200"]').setValue("Aula de legalidade");
+    await form.findAll(".app-select-trigger")[0].trigger("pointerdown");
+    await flushPromises();
+    const videoOption = Array.from(
+      document.querySelectorAll<HTMLElement>(".app-select-item"),
+    ).find((option) => option.textContent?.trim() === "Videoaula");
+    expect(videoOption).toBeDefined();
+    videoOption?.dispatchEvent(new Event("pointerup", { bubbles: true }));
+    await flushPromises();
+    form = wrapper.get(".material-panel form.content-form");
+    await form
+      .findAll('input[type="url"]')[0]
+      .setValue("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+    await form.findAll('input[maxlength="200"]')[1].setValue("Prof. Ana");
+    await form.get("textarea").setValue("Princípio da legalidade");
+    await form.trigger("submit");
+    await flushPromises();
+
+    expect(materialInputs[0]).toMatchObject({
+      title: "Aula de legalidade",
+      type: "video",
+      professor: "Prof. Ana",
+      thumbnailUrl: "",
+    });
+    expect(wrapper.get(".video-lessons-section").text()).toContain("Prof. Ana");
+    const thumbnail = wrapper.get(".video-lesson-card .material-preview img");
+    expect(thumbnail.attributes("src")).toBe(
+      "https://img.youtube.com/vi/dQw4w9WgXcQ/0.jpg",
+    );
+    await thumbnail.trigger("error");
+    expect(thumbnail.attributes("src")).toBe(
+      "https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+    );
+    await thumbnail.trigger("error");
+    await thumbnail.trigger("error");
+    await thumbnail.trigger("error");
+    expect((thumbnail.element as HTMLImageElement).hidden).toBe(true);
+    expect(
+      wrapper
+        .find(".video-lesson-card .material-preview-frame > span")
+        .exists(),
+    ).toBe(true);
+
+    await addMaterialButton.trigger("click");
+    form = wrapper.get(".material-panel form.content-form");
+    await form.get('input[maxlength="200"]').setValue("Constituição Federal");
+    await form.findAll(".app-select-trigger")[0].trigger("pointerdown");
+    await flushPromises();
+    const lawOption = Array.from(
+      document.querySelectorAll<HTMLElement>(".app-select-item"),
+    ).find((option) => option.textContent?.trim() === "Lei ou norma");
+    expect(lawOption).toBeDefined();
+    lawOption?.dispatchEvent(new Event("pointerup", { bubbles: true }));
+    await flushPromises();
+    form = wrapper.get(".material-panel form.content-form");
+    await form
+      .find('input[type="url"]')
+      .setValue("https://www.planalto.gov.br/");
+    await form.trigger("submit");
+    await flushPromises();
+
+    expect(materialInputs[1]).toMatchObject({
+      title: "Constituição Federal",
+      type: "law",
+    });
+    expect(wrapper.get(".law-materials-section").text()).toContain(
+      "Constituição Federal",
+    );
+    expect(
+      wrapper
+        .get(".law-material-card .material-preview--law img")
+        .attributes("src"),
+    ).toBe("/brazil-coat-of-arms.svg");
   });
 
   it("searches without accent sensitivity and combines topic and material filters", async () => {
@@ -383,6 +635,6 @@ describe("ContentView", () => {
     expect(bookOption).toBeDefined();
     bookOption!.dispatchEvent(new Event("pointerup", { bubbles: true }));
     await flushPromises();
-    expect(wrapper.find(".material-panel").text()).not.toContain("Videoaula");
+    expect(wrapper.find(".video-lessons-section").exists()).toBe(false);
   });
 });

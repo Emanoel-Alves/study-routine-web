@@ -3,9 +3,11 @@ import { computed, onMounted, reactive, ref, watch } from "vue";
 import { RouterLink, useRouter } from "vue-router";
 import AppSelect from "../components/AppSelect.vue";
 import ConfirmDialog from "../components/ConfirmDialog.vue";
+import MaterialPreview from "../components/MaterialPreview.vue";
 import { currentUser, logout } from "../auth";
 import { requestConfirmation } from "../confirm-dialog";
 import { qconcursosUrl } from "../qconcursos";
+import { activeStudyTimer } from "../study-timer";
 import {
   createMaterial,
   createSubject,
@@ -59,7 +61,6 @@ const subjectDraft = reactive({ name: "", description: "" });
 const topicDraft = reactive({
   name: "",
   description: "",
-  status: "not_started" as StudyStatus,
   estimatedMinutes: "",
 });
 const materialDraft = reactive({
@@ -68,6 +69,8 @@ const materialDraft = reactive({
   type: "other" as MaterialType,
   url: "",
   text: "",
+  professor: "",
+  thumbnailUrl: "",
 });
 
 const statusOptions: { value: StudyStatus; label: string }[] = [
@@ -78,7 +81,8 @@ const statusOptions: { value: StudyStatus; label: string }[] = [
 ];
 
 const materialTypes: { value: MaterialType; label: string }[] = [
-  { value: "video", label: "Vídeo" },
+  { value: "video", label: "Videoaula" },
+  { value: "law", label: "Lei ou norma" },
   { value: "book", label: "Livro" },
   { value: "article", label: "Artigo" },
   { value: "questions", label: "Questões" },
@@ -149,7 +153,9 @@ const visibleSubjects = computed(() => {
         content.value.materials.some(
           (material) =>
             material.subjectId === subject.id &&
-            (matchesSearch(material.title) || matchesSearch(material.text)),
+            (matchesSearch(material.title) ||
+              matchesSearch(material.text) ||
+              matchesSearch(material.professor ?? "")),
         )
       );
     })
@@ -218,13 +224,44 @@ const subjectMaterials = computed(() =>
       material.type === materialTypeFilter.value;
     const matchesText =
       matchesSearch(material.title) || matchesSearch(material.text);
-    return belongsToSubject && matchesType && matchesText;
+    return (
+      belongsToSubject &&
+      material.type !== "video" &&
+      material.type !== "law" &&
+      matchesType &&
+      matchesText
+    );
   }),
+);
+const subjectVideos = computed(() =>
+  content.value.materials.filter(
+    (material) =>
+      material.subjectId === selectedSubjectId.value &&
+      material.type === "video" &&
+      (materialTypeFilter.value === "all" ||
+        materialTypeFilter.value === "video") &&
+      (matchesSearch(material.title) ||
+        matchesSearch(material.text) ||
+        matchesSearch(material.professor ?? "")),
+  ),
+);
+const subjectLaws = computed(() =>
+  content.value.materials.filter(
+    (material) =>
+      material.subjectId === selectedSubjectId.value &&
+      material.type === "law" &&
+      (materialTypeFilter.value === "all" ||
+        materialTypeFilter.value === "law") &&
+      (matchesSearch(material.title) || matchesSearch(material.text)),
+  ),
 );
 
 const selectedTopicMaterials = computed(() =>
   content.value.materials.filter(
-    (material) => material.topicId === selectedTopicId.value,
+    (material) =>
+      material.topicId === selectedTopicId.value &&
+      material.type !== "video" &&
+      material.type !== "law",
   ),
 );
 const materialsByTopic = computed(() => {
@@ -432,7 +469,6 @@ function openTopicForm(topic?: Topic) {
   editingTopicId.value = topic?.id ?? "";
   topicDraft.name = topic?.name ?? "";
   topicDraft.description = topic?.description ?? "";
-  topicDraft.status = topic?.status ?? "not_started";
   topicDraft.estimatedMinutes =
     topic?.estimatedMinutes === null || topic?.estimatedMinutes === undefined
       ? ""
@@ -446,7 +482,6 @@ async function submitTopic() {
   const input = {
     name: topicDraft.name.trim(),
     description: topicDraft.description.trim(),
-    status: topicDraft.status,
     estimatedMinutes: topicDraft.estimatedMinutes
       ? Number(topicDraft.estimatedMinutes)
       : null,
@@ -458,7 +493,9 @@ async function submitTopic() {
   const topicId = editingTopicId.value;
   await performMutation(
     () =>
-      topicId ? updateTopic(topicId, input) : createTopic(subject.id, input),
+      topicId
+        ? updateTopic(topicId, input)
+        : createTopic(subject.id, { ...input, status: "not_started" }),
     (topic) => {
       selectedTopicId.value = topic.id;
       topicFormOpen.value = false;
@@ -500,16 +537,6 @@ async function importMatrix() {
   }
 }
 
-async function changeTopicStatus(topic: Topic, value: string) {
-  const status = statusOptions.find((option) => option.value === value)?.value;
-  if (!status) return;
-  await performMutation(
-    () => updateTopic(topic.id, { status }),
-    () => undefined,
-    "Estado do tópico atualizado.",
-  );
-}
-
 async function saveTopicNotes() {
   const topic = selectedTopic.value;
   if (!topic) return;
@@ -519,6 +546,14 @@ async function saveTopicNotes() {
       topicNotesDraft.value = selectedTopic.value?.notes ?? "";
     },
     "Anotações do tópico salvas.",
+  );
+}
+
+async function resetTopicStatus(topic: Topic) {
+  await performMutation(
+    () => updateTopic(topic.id, { status: "not_started" }),
+    () => undefined,
+    `Status de "${topic.name}" redefinido para Não iniciado.`,
   );
 }
 
@@ -568,6 +603,8 @@ function openMaterialForm(material?: Material) {
   materialDraft.type = material?.type ?? "other";
   materialDraft.url = material?.url ?? "";
   materialDraft.text = material?.text ?? "";
+  materialDraft.professor = material?.professor ?? "";
+  materialDraft.thumbnailUrl = material?.thumbnailUrl ?? "";
   materialFormOpen.value = true;
 }
 
@@ -580,9 +617,20 @@ async function submitMaterial() {
     type: materialDraft.type,
     url: materialDraft.url.trim(),
     text: materialDraft.text.trim(),
+    professor:
+      materialDraft.type === "video" ? materialDraft.professor.trim() : "",
+    thumbnailUrl:
+      materialDraft.type === "video" ? materialDraft.thumbnailUrl.trim() : "",
   };
   if (!input.title) {
     pageError.value = "Informe o título do material.";
+    return;
+  }
+  if ((input.type === "video" || input.type === "law") && !input.url) {
+    pageError.value =
+      input.type === "video"
+        ? "Informe o link da videoaula."
+        : "Informe o link da lei ou norma.";
     return;
   }
   if (!input.url && !input.text) {
@@ -973,14 +1021,6 @@ function openTopicResult(topic: Topic) {
                 />
               </label>
               <label>
-                Estado
-                <AppSelect
-                  v-model="topicDraft.status"
-                  :options="statusOptions"
-                  aria-label="Estado do tópico"
-                />
-              </label>
-              <label>
                 Estimativa (minutos)
                 <input
                   v-model="topicDraft.estimatedMinutes"
@@ -1019,20 +1059,34 @@ function openTopicResult(topic: Topic) {
                   <strong>{{ topic.name }}</strong>
                   <span v-if="topic.description">{{ topic.description }}</span>
                 </button>
-                <label class="topic-status">
-                  <span class="visually-hidden">
-                    Estado de {{ topic.name }}
-                  </span>
-                  <AppSelect
-                    :model-value="topic.status"
-                    :disabled="saving || selectedSubject.archived"
-                    :options="statusOptions"
-                    :aria-label="`Estado de ${topic.name}`"
-                    class="topic-status-select"
-                    @change="changeTopicStatus(topic, $event)"
-                  />
-                </label>
+                <span
+                  class="topic-status-label"
+                  :class="`topic-status-label--${topic.status}`"
+                >
+                  {{ statusLabel(topic.status) }}
+                </span>
                 <div class="topic-actions">
+                  <button
+                    v-if="topic.status !== 'not_started'"
+                    class="icon-action"
+                    type="button"
+                    :disabled="
+                      saving ||
+                      selectedSubject.archived ||
+                      activeStudyTimer.topicId === topic.id
+                    "
+                    :aria-label="`Redefinir ${topic.name} para Não iniciado`"
+                    :title="
+                      activeStudyTimer.topicId === topic.id
+                        ? 'Finalize o cronômetro antes de redefinir o tópico.'
+                        : 'Redefinir para Não iniciado'
+                    "
+                    @click="resetTopicStatus(topic)"
+                  >
+                    <span class="material-symbols-rounded" aria-hidden="true">
+                      restart_alt
+                    </span>
+                  </button>
                   <a
                     class="icon-action qconcursos-content-link"
                     :href="qconcursosUrl(topic.name, selectedSubject.name)"
@@ -1109,40 +1163,54 @@ function openTopicResult(topic: Topic) {
                     </span>
                   </button>
                 </div>
-                <div
+                <details
                   v-if="materialsByTopic.get(topic.id)?.length"
                   class="topic-linked-materials"
                 >
-                  <span class="topic-linked-materials-label">
+                  <summary class="topic-linked-materials-label">
                     <span class="material-symbols-rounded" aria-hidden="true">
                       attach_file
                     </span>
-                    Materiais deste tópico
-                  </span>
+                    Materiais do tópico ({{
+                      materialsByTopic.get(topic.id)?.length
+                    }})
+                  </summary>
                   <ul>
                     <li
                       v-for="material in materialsByTopic.get(topic.id)"
                       :key="material.id"
                     >
-                      <a
-                        v-if="material.url"
-                        :href="material.url"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        {{ material.title }}
-                        <span
-                          class="material-symbols-rounded"
-                          aria-hidden="true"
-                        >
-                          open_in_new
+                      <span class="topic-linked-material-copy">
+                        <MaterialPreview :material="material" size="compact" />
+                        <span class="topic-linked-material-kind">
+                          {{ materialTypeLabel(material.type) }}
                         </span>
-                        <span class="visually-hidden">(abre em nova aba)</span>
-                      </a>
-                      <span v-else>{{ material.title }}</span>
+                        <a
+                          v-if="material.url"
+                          :href="material.url"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {{ material.title }}
+                          <span
+                            class="material-symbols-rounded"
+                            aria-hidden="true"
+                          >
+                            open_in_new
+                          </span>
+                          <span class="visually-hidden"
+                            >(abre em nova aba)</span
+                          >
+                        </a>
+                        <strong v-else>{{ material.title }}</strong>
+                        <small v-if="material.professor">
+                          Professor: {{ material.professor }}
+                        </small>
+                        <small v-if="material.text">{{ material.text }}</small>
+                      </span>
                     </li>
                   </ul>
-                </div>
+                </details>
               </li>
             </ul>
             <p v-else-if="!selectedSubject.archived" class="inline-empty">
@@ -1268,9 +1336,9 @@ function openTopicResult(topic: Topic) {
           >
             <div class="panel-section-heading">
               <div>
-                <h2 id="materials-heading">Materiais</h2>
+                <h2 id="materials-heading">Materiais e referências</h2>
                 <p class="panel-subtitle">
-                  Links e referências da disciplina ou do tópico selecionado.
+                  Videoaulas, legislação e outros materiais da disciplina.
                 </p>
               </div>
               <button
@@ -1316,26 +1384,66 @@ function openTopicResult(topic: Topic) {
                 />
               </label>
               <label>
-                URL <span class="optional-label">(opcional)</span>
+                Link
+                <span
+                  v-if="
+                    materialDraft.type !== 'video' &&
+                    materialDraft.type !== 'law'
+                  "
+                  class="optional-label"
+                >
+                  (opcional)
+                </span>
                 <input
                   v-model="materialDraft.url"
                   type="url"
                   maxlength="2048"
                   placeholder="https://..."
+                  :required="
+                    materialDraft.type === 'video' ||
+                    materialDraft.type === 'law'
+                  "
                 />
               </label>
+              <template v-if="materialDraft.type === 'video'">
+                <label>
+                  Professor <span class="optional-label">(opcional)</span>
+                  <input
+                    v-model="materialDraft.professor"
+                    maxlength="200"
+                    autocomplete="off"
+                  />
+                </label>
+                <label>
+                  Link da miniatura
+                  <span class="optional-label">(opcional)</span>
+                  <input
+                    v-model="materialDraft.thumbnailUrl"
+                    type="url"
+                    maxlength="2048"
+                    placeholder="Detectada automaticamente no YouTube"
+                  />
+                </label>
+              </template>
               <label>
-                Texto ou descrição
+                {{
+                  materialDraft.type === "video"
+                    ? "Descrição da videoaula"
+                    : materialDraft.type === "law"
+                      ? "Descrição da lei ou norma"
+                      : "Texto ou descrição"
+                }}
                 <textarea
                   v-model="materialDraft.text"
                   rows="3"
                   maxlength="20000"
-                  placeholder="Adicione o conteúdo textual ou uma descrição."
+                  placeholder="Adicione uma descrição ou anotação."
                 />
               </label>
               <p class="field-help">
-                Informe um link HTTP(S), um texto ou ambos. O conteúdo de
-                terceiros não é copiado para a plataforma.
+                Videoaulas do YouTube recebem uma miniatura automaticamente.
+                Para outros serviços, você pode informar o link da miniatura. O
+                conteúdo de terceiros não é copiado para a plataforma.
               </p>
               <div class="action-row">
                 <button class="primary-button" type="submit" :disabled="saving">
@@ -1351,69 +1459,229 @@ function openTopicResult(topic: Topic) {
               </div>
             </form>
 
-            <ul v-if="subjectMaterials.length" class="material-list">
-              <li
-                v-for="material in subjectMaterials"
-                :key="material.id"
-                class="material-card"
-              >
-                <div class="material-copy">
-                  <span class="material-kind">
-                    {{ materialTypeLabel(material.type) }}
-                    <template v-if="material.topicId">
-                      ·
-                      {{
-                        subjectTopics.find(
-                          (topic) => topic.id === material.topicId,
-                        )?.name
-                      }}
-                    </template>
-                    <template v-else> · Disciplina</template>
-                  </span>
-                  <h3>{{ material.title }}</h3>
-                  <p v-if="material.text">{{ material.text }}</p>
-                  <a
-                    v-if="material.url"
-                    :href="material.url"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <span class="material-symbols-rounded" aria-hidden="true">
-                      open_in_new
+            <section
+              v-if="subjectVideos.length"
+              class="subject-media-section video-lessons-section"
+              aria-labelledby="video-lessons-heading"
+            >
+              <h3 id="video-lessons-heading">Videoaulas</h3>
+              <ul class="video-lesson-list">
+                <li
+                  v-for="material in subjectVideos"
+                  :key="material.id"
+                  class="video-lesson-card"
+                >
+                  <MaterialPreview :material="material" size="large" />
+                  <div class="video-lesson-copy">
+                    <span class="material-kind">
+                      Videoaula
+                      <template v-if="material.topicId">
+                        ·
+                        {{
+                          subjectTopics.find(
+                            (topic) => topic.id === material.topicId,
+                          )?.name
+                        }}
+                      </template>
+                      <template v-else> · Disciplina</template>
                     </span>
-                    Abrir referência externa
-                    <span class="visually-hidden">(abre em nova aba)</span>
-                  </a>
-                </div>
-                <div class="material-actions">
-                  <button
-                    class="icon-action"
-                    type="button"
-                    :disabled="saving || selectedSubject.archived"
-                    :aria-label="`Editar ${material.title}`"
-                    title="Editar material"
-                    @click="openMaterialForm(material)"
-                  >
-                    <span class="material-symbols-rounded" aria-hidden="true">
-                      edit
+                    <h4>{{ material.title }}</h4>
+                    <p v-if="material.professor" class="video-lesson-professor">
+                      Professor: {{ material.professor }}
+                    </p>
+                    <p v-if="material.text">{{ material.text }}</p>
+                    <a
+                      v-if="material.url"
+                      class="video-lesson-open-link"
+                      :href="material.url"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Abrir videoaula
+                      <span class="material-symbols-rounded" aria-hidden="true">
+                        open_in_new
+                      </span>
+                      <span class="visually-hidden">(abre em nova aba)</span>
+                    </a>
+                  </div>
+                  <div class="material-actions">
+                    <button
+                      class="icon-action"
+                      type="button"
+                      :disabled="saving || selectedSubject.archived"
+                      :aria-label="`Editar ${material.title}`"
+                      title="Editar videoaula"
+                      @click="openMaterialForm(material)"
+                    >
+                      <span class="material-symbols-rounded" aria-hidden="true">
+                        edit
+                      </span>
+                    </button>
+                    <button
+                      class="icon-action icon-action--danger"
+                      type="button"
+                      :disabled="saving"
+                      :aria-label="`Remover ${material.title}`"
+                      title="Remover videoaula"
+                      @click="removeMaterial(material)"
+                    >
+                      <span class="material-symbols-rounded" aria-hidden="true">
+                        delete
+                      </span>
+                    </button>
+                  </div>
+                </li>
+              </ul>
+            </section>
+
+            <section
+              v-if="subjectLaws.length"
+              class="subject-media-section law-materials-section"
+              aria-labelledby="law-materials-heading"
+            >
+              <h3 id="law-materials-heading">Leis e normas</h3>
+              <ul class="material-list">
+                <li
+                  v-for="material in subjectLaws"
+                  :key="material.id"
+                  class="material-card law-material-card"
+                >
+                  <MaterialPreview :material="material" size="compact" />
+                  <div class="material-copy">
+                    <span class="material-kind">
+                      Lei ou norma
+                      <template v-if="material.topicId">
+                        ·
+                        {{
+                          subjectTopics.find(
+                            (topic) => topic.id === material.topicId,
+                          )?.name
+                        }}
+                      </template>
+                      <template v-else> · Disciplina</template>
                     </span>
-                  </button>
-                  <button
-                    class="icon-action icon-action--danger"
-                    type="button"
-                    :disabled="saving"
-                    :aria-label="`Remover ${material.title}`"
-                    title="Remover material"
-                    @click="removeMaterial(material)"
-                  >
-                    <span class="material-symbols-rounded" aria-hidden="true">
-                      delete
+                    <h3>{{ material.title }}</h3>
+                    <p v-if="material.text">{{ material.text }}</p>
+                    <a
+                      v-if="material.url"
+                      :href="material.url"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <span class="material-symbols-rounded" aria-hidden="true">
+                        open_in_new
+                      </span>
+                      Abrir legislação
+                      <span class="visually-hidden">(abre em nova aba)</span>
+                    </a>
+                  </div>
+                  <div class="material-actions">
+                    <button
+                      class="icon-action"
+                      type="button"
+                      :disabled="saving || selectedSubject.archived"
+                      :aria-label="`Editar ${material.title}`"
+                      title="Editar lei ou norma"
+                      @click="openMaterialForm(material)"
+                    >
+                      <span class="material-symbols-rounded" aria-hidden="true">
+                        edit
+                      </span>
+                    </button>
+                    <button
+                      class="icon-action icon-action--danger"
+                      type="button"
+                      :disabled="saving"
+                      :aria-label="`Remover ${material.title}`"
+                      title="Remover lei ou norma"
+                      @click="removeMaterial(material)"
+                    >
+                      <span class="material-symbols-rounded" aria-hidden="true">
+                        delete
+                      </span>
+                    </button>
+                  </div>
+                </li>
+              </ul>
+            </section>
+
+            <section
+              v-if="subjectMaterials.length"
+              class="subject-media-section"
+              aria-labelledby="other-materials-heading"
+            >
+              <h3 id="other-materials-heading">Outros materiais</h3>
+              <ul class="material-list">
+                <li
+                  v-for="material in subjectMaterials"
+                  :key="material.id"
+                  class="material-card"
+                >
+                  <div class="material-copy">
+                    <span class="material-kind">
+                      {{ materialTypeLabel(material.type) }}
+                      <template v-if="material.topicId">
+                        ·
+                        {{
+                          subjectTopics.find(
+                            (topic) => topic.id === material.topicId,
+                          )?.name
+                        }}
+                      </template>
+                      <template v-else> · Disciplina</template>
                     </span>
-                  </button>
-                </div>
-              </li>
-            </ul>
-            <p v-else class="inline-empty">
+                    <h3>{{ material.title }}</h3>
+                    <p v-if="material.text">{{ material.text }}</p>
+                    <a
+                      v-if="material.url"
+                      :href="material.url"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <span class="material-symbols-rounded" aria-hidden="true">
+                        open_in_new
+                      </span>
+                      Abrir referência externa
+                      <span class="visually-hidden">(abre em nova aba)</span>
+                    </a>
+                  </div>
+                  <div class="material-actions">
+                    <button
+                      class="icon-action"
+                      type="button"
+                      :disabled="saving || selectedSubject.archived"
+                      :aria-label="`Editar ${material.title}`"
+                      title="Editar material"
+                      @click="openMaterialForm(material)"
+                    >
+                      <span class="material-symbols-rounded" aria-hidden="true">
+                        edit
+                      </span>
+                    </button>
+                    <button
+                      class="icon-action icon-action--danger"
+                      type="button"
+                      :disabled="saving"
+                      :aria-label="`Remover ${material.title}`"
+                      title="Remover material"
+                      @click="removeMaterial(material)"
+                    >
+                      <span class="material-symbols-rounded" aria-hidden="true">
+                        delete
+                      </span>
+                    </button>
+                  </div>
+                </li>
+              </ul>
+            </section>
+            <p
+              v-if="
+                !subjectVideos.length &&
+                !subjectLaws.length &&
+                !subjectMaterials.length
+              "
+              class="inline-empty"
+            >
               Nenhum material corresponde aos filtros atuais. Você pode
               adicionar um link ou uma referência em texto.
             </p>
