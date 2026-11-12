@@ -154,6 +154,17 @@ describe("ContentView", () => {
               professor: "",
               thumbnailUrl: "",
             },
+            {
+              id: "material-3",
+              subjectId: "subject-1",
+              topicId: "topic-1",
+              title: "Artigo sobre direitos fundamentais",
+              type: "article",
+              url: "https://example.com/artigo",
+              text: "",
+              professor: "",
+              thumbnailUrl: "",
+            },
           ],
         }),
       ),
@@ -163,15 +174,21 @@ describe("ContentView", () => {
     const topicMaterials = wrapper.get(".topic-linked-materials");
     expect((topicMaterials.element as HTMLDetailsElement).open).toBe(false);
     expect(topicMaterials.get("summary").text()).toContain(
-      "Materiais do tópico (2)",
+      "Materiais do tópico (3)",
     );
     await topicMaterials.get("summary").trigger("click");
     expect(topicMaterials.text()).toContain("Aula de direitos fundamentais");
     expect(topicMaterials.text()).toContain("Professora Ana");
     expect(topicMaterials.text()).toContain("Resumo em PDF");
+    expect(topicMaterials.text()).toContain(
+      "Artigo sobre direitos fundamentais",
+    );
     expect(topicMaterials.get(".material-preview--document").text()).toBe(
       "description",
     );
+    expect(
+      topicMaterials.get(".material-preview--article img").attributes("src"),
+    ).toBe("/article-icon.png");
     expect(topicMaterials.get("a").attributes("href")).toBe(
       "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
     );

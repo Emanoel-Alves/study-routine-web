@@ -509,7 +509,7 @@ async function importMatrix() {
   const confirmed = await requestConfirmation({
     title: "Adicionar matriz de estudos?",
     message:
-      "Adicionar à sua conta a matriz de 8 disciplinas e 62 tópicos, incluindo Língua Portuguesa e Legislação do Edital UFC nº 01/2024? As referências aparecem nos materiais. Itens com nomes já existentes não serão duplicados nem sobrescritos.",
+      "Adicionar à sua conta a matriz de 11 disciplinas e 109 tópicos, incluindo Back-End, Front-End, Ciência de Dados e Estatística, Língua Portuguesa e Legislação, com referência ao Edital UFC nº 01/2024? Itens com nomes já existentes não serão duplicados nem sobrescritos.",
     confirmLabel: "Adicionar matriz",
   });
   if (!confirmed) {

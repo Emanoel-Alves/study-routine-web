@@ -270,7 +270,11 @@ describe("PlanningView timer", () => {
               createdAt: new Date().toISOString(),
             },
           ],
-          activePlan: { id: "default", name: "Meu planejamento" },
+          activePlan: {
+            id: "default",
+            name: "Meu planejamento",
+            selectedTopicIds: null,
+          },
           preferences: {
             studyDays: [weekday],
             minutesPerDay: 60,
@@ -302,7 +306,14 @@ describe("PlanningView timer", () => {
                 studiedMinutes: registeredSession ? 1 : 0,
               },
             ],
-            unscheduledTopics: [],
+            unscheduledTopics: Array.from({ length: 6 }, (_, index) => ({
+              topicId: `unscheduled-${index + 1}`,
+              subjectId: "subject-1",
+              subjectName: "Banco de Dados",
+              topicName: `Tópico pendente ${index + 1}`,
+              estimatedMinutes: 45,
+              usesDefaultEstimate: false,
+            })),
             totalAvailableMinutes: 60,
             plannedMinutes: registeredSession ? 0 : 45,
             workloadMinutes: registeredSession ? 0 : 45,
@@ -316,6 +327,41 @@ describe("PlanningView timer", () => {
     );
 
     const wrapper = await mountPlanningView();
+    const expectedCompletionDate = new Date(`${today}T12:00:00.000Z`);
+    expectedCompletionDate.setUTCDate(expectedCompletionDate.getUTCDate() + 7);
+    const expectedCompletionLabel = new Intl.DateTimeFormat("pt-BR", {
+      weekday: "long",
+      day: "2-digit",
+      month: "long",
+      timeZone: "UTC",
+    }).format(expectedCompletionDate);
+    expect(wrapper.get(".planning-summary").text()).toContain("45 min");
+    expect(wrapper.get(".planning-summary").text()).toContain("1 h/dia");
+    expect(wrapper.get(".planning-summary").text()).toContain(
+      "1 h/semana em 1 dia",
+    );
+    expect(wrapper.get(".planning-summary").text()).toContain(
+      expectedCompletionLabel,
+    );
+    expect(wrapper.findAll(".unscheduled-section .planned-topic")).toHaveLength(
+      4,
+    );
+    const unscheduledToggle = wrapper.get(".unscheduled-toggle");
+    expect(unscheduledToggle.text()).toBe("Ver mais 2 tópicos");
+    expect(unscheduledToggle.attributes("aria-expanded")).toBe("false");
+    await unscheduledToggle.trigger("click");
+    expect(wrapper.findAll(".unscheduled-section .planned-topic")).toHaveLength(
+      6,
+    );
+    expect(wrapper.get(".unscheduled-toggle").text()).toBe("Mostrar menos");
+    expect(wrapper.get(".unscheduled-toggle").attributes("aria-expanded")).toBe(
+      "true",
+    );
+    await wrapper.get(".unscheduled-toggle").trigger("click");
+    expect(wrapper.findAll(".unscheduled-section .planned-topic")).toHaveLength(
+      4,
+    );
+
     const topicMaterials = wrapper.get(".planned-topic-materials");
     expect((topicMaterials.element as HTMLDetailsElement).open).toBe(false);
     expect(topicMaterials.text()).toContain("Materiais (3)");
@@ -457,6 +503,9 @@ describe("PlanningView timer", () => {
     );
     expect(wrapper.get(".planned-topic-completed").text()).toContain(
       "Concluído",
+    );
+    expect(wrapper.get(".planning-summary").text()).toContain(
+      "Todos os tópicos selecionados já foram estudados.",
     );
     await wrapper.get(".session-delete-button").trigger("click");
     await flushPromises();

@@ -94,6 +94,7 @@ const successMessage = ref("");
 const selectedPlanId = ref("");
 const selectedTopicIdsDraft = ref<string[]>([]);
 const selectedSessionIds = ref<string[]>([]);
+const showAllUnscheduledTopics = ref(false);
 const planFormOpen = ref(false);
 const topicEditorOpen = ref(false);
 const planNameDraft = ref("");
@@ -147,7 +148,55 @@ const activePlanTopics = computed(() => {
   const selectedIds = new Set(selectedTopicIds);
   return activeTopics.value.filter((topic) => selectedIds.has(topic.id));
 });
+const remainingPlanTopics = computed(() =>
+  activePlanTopics.value.filter((topic) => topic.status !== "studied"),
+);
+const remainingPlanMinutes = computed(() =>
+  remainingPlanTopics.value.reduce(
+    (total, topic) => total + (topic.estimatedMinutes ?? 45),
+    0,
+  ),
+);
+const dailyStudyMinutes = computed(() =>
+  Number.isFinite(preferencesDraft.minutesPerDay)
+    ? Math.max(0, preferencesDraft.minutesPerDay)
+    : 0,
+);
+const forecastCompletionDate = computed(() => {
+  const { studyDays } = preferencesDraft;
+  if (
+    activePlanTopics.value.length === 0 ||
+    remainingPlanTopics.value.length === 0 ||
+    studyDays.length === 0 ||
+    dailyStudyMinutes.value <= 0
+  ) {
+    return null;
+  }
+
+  const availableDays = new Set(studyDays);
+  let studyDaysRemaining = Math.ceil(
+    remainingPlanMinutes.value / dailyStudyMinutes.value,
+  );
+  if (studyDaysRemaining === 0) studyDaysRemaining = 1;
+  const forecastDate = parseDateKey(today);
+
+  while (studyDaysRemaining > 0) {
+    forecastDate.setDate(forecastDate.getDate() + 1);
+    const weekday = (forecastDate.getDay() + 6) % 7;
+    if (availableDays.has(weekday)) studyDaysRemaining--;
+  }
+
+  return dateKey(forecastDate);
+});
+const weeklyStudyCapacityMinutes = computed(
+  () => preferencesDraft.studyDays.length * dailyStudyMinutes.value,
+);
 const selectedTopicCount = computed(() => selectedTopicIdsDraft.value.length);
+const visibleUnscheduledTopics = computed(() =>
+  showAllUnscheduledTopics.value
+    ? planning.value.plan.unscheduledTopics
+    : planning.value.plan.unscheduledTopics.slice(0, 4),
+);
 const totalSelectableTopics = computed(() =>
   selectionSubjects.value.reduce(
     (total, subject) => total + subject.topics.length,
@@ -1108,6 +1157,52 @@ function handleStudySessionUpdated(): void {
               disponíveis
             </small>
           </article>
+          <article class="summary-card">
+            <span>Conteúdo restante no planejamento</span>
+            <strong>{{ formatTime(remainingPlanMinutes) }}</strong>
+            <small>
+              {{ remainingPlanTopics.length }} tópico(s) não estudado(s) ·
+              estimativas padrão de 45 min quando necessário
+            </small>
+          </article>
+          <article class="summary-card">
+            <span>Ritmo de estudo configurado</span>
+            <strong>{{ formatTime(dailyStudyMinutes) }}/dia</strong>
+            <small>
+              {{ formatTime(weeklyStudyCapacityMinutes) }}/semana em
+              {{ preferencesDraft.studyDays.length }}
+              {{ preferencesDraft.studyDays.length === 1 ? "dia" : "dias" }}
+              <template v-if="hasUnsavedPreferences">
+                · prévia não salva</template
+              >
+            </small>
+          </article>
+          <article class="summary-card">
+            <span>Previsão de conclusão</span>
+            <strong v-if="activePlanTopics.length === 0">
+              Sem tópicos selecionados
+            </strong>
+            <strong v-else-if="remainingPlanTopics.length === 0">
+              Concluído
+            </strong>
+            <strong v-else-if="forecastCompletionDate">
+              {{ formatDate(forecastCompletionDate) }}
+            </strong>
+            <strong v-else>Sem previsão</strong>
+            <small v-if="forecastCompletionDate">
+              Considerando o conteúdo restante e sua disponibilidade, a partir
+              do próximo dia.
+            </small>
+            <small v-else-if="activePlanTopics.length === 0">
+              Selecione tópicos para estimar a conclusão.
+            </small>
+            <small v-else-if="remainingPlanTopics.length === 0">
+              Todos os tópicos selecionados já foram estudados.
+            </small>
+            <small v-else>
+              Configure dias e minutos disponíveis para gerar uma previsão.
+            </small>
+          </article>
         </section>
 
         <section class="panel availability-panel">
@@ -1781,7 +1876,7 @@ function handleStudySessionUpdated(): void {
             </p>
             <ul class="planned-topic-list">
               <li
-                v-for="topic in planning.plan.unscheduledTopics"
+                v-for="topic in visibleUnscheduledTopics"
                 :key="topic.topicId"
                 class="planned-topic"
               >
@@ -1841,6 +1936,19 @@ function handleStudySessionUpdated(): void {
                 </details>
               </li>
             </ul>
+            <button
+              v-if="planning.plan.unscheduledTopics.length > 4"
+              class="text-button unscheduled-toggle"
+              type="button"
+              :aria-expanded="showAllUnscheduledTopics"
+              @click="showAllUnscheduledTopics = !showAllUnscheduledTopics"
+            >
+              {{
+                showAllUnscheduledTopics
+                  ? "Mostrar menos"
+                  : `Ver mais ${planning.plan.unscheduledTopics.length - 4} tópicos`
+              }}
+            </button>
           </section>
         </section>
 

@@ -1609,6 +1609,10 @@ h1 {
   gap: 12px;
 }
 
+.topic-notes-panel > .panel-section-heading {
+  width: 100%;
+}
+
 .topic-add-material {
   display: inline-flex;
   align-items: center;
@@ -1785,6 +1789,20 @@ h1 {
   width: 38px;
   height: 38px;
   aspect-ratio: auto;
+}
+
+.material-preview--article {
+  width: 38px;
+  height: 38px;
+  aspect-ratio: auto;
+  background: transparent;
+}
+
+.material-preview-article-icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .material-preview--law {
@@ -3346,6 +3364,10 @@ h1 {
   color: var(--color-muted);
   font-size: 12px;
   line-height: 1.55;
+}
+
+.unscheduled-toggle {
+  margin-top: 12px;
 }
 
 .subject-progress-list > li {

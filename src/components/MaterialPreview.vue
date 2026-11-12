@@ -8,6 +8,7 @@ const props = defineProps<{
 }>();
 
 const nationalEmblemUrl = `${import.meta.env.BASE_URL}brazil-coat-of-arms.svg`;
+const articleIconUrl = `${import.meta.env.BASE_URL}article-icon.png`;
 
 function youtubeVideoId(url: string): string {
   try {
@@ -71,7 +72,8 @@ function retryThumbnail(event: Event) {
     v-if="
       material.type === 'video' ||
       material.type === 'document' ||
-      material.type === 'law'
+      material.type === 'law' ||
+      material.type === 'article'
     "
     class="material-preview"
     :class="[
@@ -91,7 +93,9 @@ function retryThumbnail(event: Event) {
         : undefined
     "
     :aria-hidden="
-      material.type === 'document' || material.type === 'law'
+      material.type === 'document' ||
+      material.type === 'law' ||
+      material.type === 'article'
         ? 'true'
         : undefined
     "
@@ -113,6 +117,12 @@ function retryThumbnail(event: Event) {
     <span v-else-if="material.type === 'law'" class="material-preview-emblem">
       <img :src="nationalEmblemUrl" alt="" />
     </span>
+    <img
+      v-else-if="material.type === 'article'"
+      class="material-preview-article-icon"
+      :src="articleIconUrl"
+      alt=""
+    />
     <span v-else class="material-symbols-rounded">description</span>
   </component>
 </template>
